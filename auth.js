@@ -26,6 +26,16 @@ const sslConfig = IS_PROD
   ? { rejectUnauthorized: false }
   : { rejectUnauthorized: true, ...(sslCa ? { ca: sslCa } : {}) };
 
+const poolConfig = {
+  connectionString: process.env.DATABASE_URL,
+  ssl: sslConfig,
+  // Avoid indefinite hangs in serverless environments.
+  connectionTimeoutMillis: 10000,
+  statement_timeout: 15000,
+  query_timeout: 15000,
+  ...(IS_PROD ? { max: 1, idleTimeoutMillis: 30000 } : {}),
+};
+
 export const auth = process.env.DATABASE_URL
   ? (() => {
       try {
@@ -33,8 +43,7 @@ export const auth = process.env.DATABASE_URL
           baseURL: process.env.BETTER_AUTH_URL,
           basePath: "/api/better-auth",
           database: new Pool({
-            connectionString: process.env.DATABASE_URL,
-            ssl: sslConfig,
+            ...poolConfig,
           }),
           emailAndPassword: {
             enabled: true,

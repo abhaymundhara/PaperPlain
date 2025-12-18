@@ -37,6 +37,11 @@ export const pool = process.env.DATABASE_URL
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: sslConfig,
+      // Avoid indefinite hangs in serverless environments.
+      connectionTimeoutMillis: 10000,
+      statement_timeout: 15000,
+      query_timeout: 15000,
+      ...(IS_PROD ? { max: 1, idleTimeoutMillis: 30000 } : {}),
     })
   : null;
 

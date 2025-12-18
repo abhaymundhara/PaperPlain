@@ -9,9 +9,15 @@ let currentQaHistory = [];
 
 // --- API Helper ---
 async function apiRequest(path, { method = "GET", body } = {}) {
+  const controller = new AbortController();
+  const timeoutMs = 20000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
   const options = {
     method,
     headers: {},
+    credentials: "same-origin",
+    signal: controller.signal,
   };
 
   if (body !== undefined) {
@@ -19,11 +25,27 @@ async function apiRequest(path, { method = "GET", body } = {}) {
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetch(path, options);
+  let response;
+  try {
+    response = await fetch(path, options);
+  } catch (e) {
+    if (e?.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+
   const contentType = response.headers.get("content-type") || "";
-  const data = contentType.includes("application/json")
-    ? await response.json()
-    : await response.text();
+  let data;
+  try {
+    data = contentType.includes("application/json")
+      ? await response.json()
+      : await response.text();
+  } catch {
+    data = null;
+  }
 
   if (!response.ok) {
     const message =
