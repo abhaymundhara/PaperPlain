@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import axios from "axios";
 import xml2js from "xml2js";
 import multer from "multer";
-import { PDFParse } from "pdf-parse";
+import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { createClient } from "@supabase/supabase-js";
 import Groq from "groq-sdk";
 import { APIError } from "better-auth/api";
@@ -769,8 +769,7 @@ app.post("/api/simplify/pdf", pdfUpload.single("pdf"), async (req, res) => {
       return res.status(400).json({ success: false, error: "PDF is required" });
     }
 
-    const parser = new PDFParse({ data: buffer });
-    const parsed = await parser.getText();
+    const parsed = await pdfParse(buffer);
     const rawText = (parsed?.text || "").toString();
     const text = rawText.replace(/\r\n/g, "\n").trim();
 
