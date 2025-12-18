@@ -34,6 +34,8 @@ Academic Paper De-Jargoner — transform complex research papers into plain Engl
    - Set `BETTER_AUTH_SECRET` to a long random value (generate with `npm run auth:secret`).
    - Set `BETTER_AUTH_URL` to your deployed URL (e.g. `https://paperplain.vercel.app`); keep `http://localhost:3000` for local dev.
 
+   **TLS note:** The app enables Postgres TLS and verifies certificates in production by default. If you see `self-signed certificate in certificate chain` locally, do **not** disable verification in production—prefer providing your DB provider CA via `PGSSLROOTCERT`. The `INSECURE_SSL=true` escape hatch is intended for local development only.
+
 4. **Create Better Auth tables (run once against the hosted DB):**
 
    ```bash
@@ -51,6 +53,10 @@ Academic Paper De-Jargoner — transform complex research papers into plain Engl
 6. **Deploy to Vercel:**
 
    - Ensure the env vars (`GROQ_API_KEY`, `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`) are set in Vercel.
+   - For **PDF uploads** on Vercel: Vercel’s filesystem is ephemeral, so uploaded PDFs must be stored in object storage.
+     - Create a Supabase Storage bucket (e.g. `paperplain-pdfs`).
+     - Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` in Vercel.
+     - If you want PDFs accessible by a direct link, make the bucket **Public** (or extend the API to return signed URLs for a Private bucket).
    - Deploy with the Vercel CLI or dashboard; `vercel.json` routes `/api/*` to the Express serverless function and serves `/public` as static files.
 
 ## How to Use

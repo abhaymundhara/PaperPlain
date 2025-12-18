@@ -1,6 +1,13 @@
 let currentSummary = "";
 let authMode = "signin";
+let currentPaper = null;
+let savedPapers = [];
+let currentPaperId = null;
+let projectFilter = "";
+let currentTags = [];
+let currentQaHistory = [];
 
+// --- API Helper ---
 async function apiRequest(path, { method = "GET", body } = {}) {
   const options = {
     method,
@@ -29,29 +36,25 @@ async function apiRequest(path, { method = "GET", body } = {}) {
   return data;
 }
 
+// --- Auth Functions ---
 function setAuthMode(mode) {
   authMode = mode;
-
   const tabSignIn = document.getElementById("tabSignIn");
   const tabSignUp = document.getElementById("tabSignUp");
   const signUpFields = document.getElementById("signUpFields");
   const authSubmitText = document.getElementById("authSubmitText");
 
   if (mode === "signup") {
-    tabSignIn.classList.remove("is-active");
-    tabSignIn.setAttribute("aria-selected", "false");
-    tabSignUp.classList.add("is-active");
-    tabSignUp.setAttribute("aria-selected", "true");
+    tabSignIn.classList.remove("active");
+    tabSignUp.classList.add("active");
     signUpFields.style.display = "block";
     authSubmitText.textContent = "Create account";
     document
       .getElementById("authPassword")
       .setAttribute("autocomplete", "new-password");
   } else {
-    tabSignUp.classList.remove("is-active");
-    tabSignUp.setAttribute("aria-selected", "false");
-    tabSignIn.classList.add("is-active");
-    tabSignIn.setAttribute("aria-selected", "true");
+    tabSignUp.classList.remove("active");
+    tabSignIn.classList.add("active");
     signUpFields.style.display = "none";
     authSubmitText.textContent = "Sign in";
     document
@@ -61,9 +64,9 @@ function setAuthMode(mode) {
 }
 
 function toggleAuthPanel() {
-  const panel = document.getElementById("authPanel");
-  const isOpen = panel.style.display !== "none";
-  panel.style.display = isOpen ? "none" : "block";
+  const overlay = document.getElementById("authOverlay");
+  const isOpen = overlay.style.display !== "none";
+  overlay.style.display = isOpen ? "none" : "flex";
   hideAuthError();
 
   if (!isOpen) {
@@ -88,17 +91,16 @@ async function submitAuth(event) {
   const btn = document.getElementById("authSubmitBtn");
   const btnText = document.getElementById("authSubmitText");
   const btnLoader = document.getElementById("authSubmitLoader");
+
   btn.disabled = true;
   btnText.style.display = "none";
-  btnLoader.style.display = "inline";
+  btnLoader.style.display = "inline-block";
 
   try {
     const email = document.getElementById("authEmail").value.trim();
     const password = document.getElementById("authPassword").value;
 
-    if (!email || !password) {
-      throw new Error("Email and password are required");
-    }
+    if (!email || !password) throw new Error("Email and password are required");
 
     if (authMode === "signup") {
       const name = document.getElementById("authName").value.trim();
@@ -117,7 +119,8 @@ async function submitAuth(event) {
 
     await refreshSession();
     document.getElementById("authPassword").value = "";
-    document.getElementById("authPanel").style.display = "none";
+    toggleAuthPanel();
+    showToast("Successfully signed in", "success");
   } catch (error) {
     showAuthError(error.message || "Authentication failed");
   } finally {
@@ -127,9 +130,14 @@ async function submitAuth(event) {
   }
 }
 
+function continueWithGoogle() {
+  window.location.href = "/api/better-auth/google";
+}
+
 async function signOut() {
   try {
     await apiRequest("/api/auth/signout", { method: "POST" });
+    showToast("Signed out", "success");
   } catch {
     // ignore
   }
@@ -137,26 +145,92 @@ async function signOut() {
 }
 
 async function refreshSession() {
-  const statusEl = document.getElementById("accountStatus");
   const toggleBtn = document.getElementById("toggleAuthBtn");
+  const avatarBadge = document.getElementById("avatarBadge");
+  const avatarLabel = document.getElementById("avatarLabel");
   const signOutBtn = document.getElementById("signOutBtn");
 
   try {
     const session = await apiRequest("/api/auth/me");
     if (session?.user?.email) {
-      statusEl.textContent = session.user.email;
-      toggleBtn.style.display = "none";
+      const initial =
+        (session.user.name || session.user.email || "").trim().charAt(0) || "U";
+      avatarBadge.textContent = initial.toUpperCase();
+      avatarBadge.style.display = "flex";
+      avatarLabel.textContent = session.user.name || "Account";
+      toggleBtn.classList.remove("btn-ghost"); // Optional styling change
       signOutBtn.style.display = "inline-flex";
+
+      await loadSavedPapers();
       return;
     }
   } catch {
     // ignore
   }
 
-  statusEl.textContent = "Not signed in";
-  toggleBtn.style.display = "inline-flex";
-  toggleBtn.textContent = "Sign in";
+  avatarBadge.style.display = "none";
+  avatarLabel.textContent = "Sign in";
   signOutBtn.style.display = "none";
+  savedPapers = [];
+  renderSavedList();
+  currentPaperId = null;
+}
+
+// --- Main Logic ---
+
+function openPdfPicker() {
+  const input = document.getElementById("pdfUploadInput");
+  if (input) input.click();
+}
+
+async function uploadPdf(event) {
+  const file = event?.target?.files?.[0];
+  if (!file) return;
+  if (file.type !== "application/pdf") {
+    showToast("Please select a PDF file", "error");
+    event.target.value = "";
+    return;
+  }
+
+  const btn = document.getElementById("uploadPdfBtn");
+  const simplifyBtn = document.getElementById("simplifyBtn");
+  const original = btn?.textContent || "Upload PDF";
+
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Uploading…";
+    }
+    if (simplifyBtn) simplifyBtn.disabled = true;
+
+    const form = new FormData();
+    form.append("pdf", file);
+    form.append("filename", file.name);
+
+    const response = await fetch("/api/simplify/pdf", {
+      method: "POST",
+      body: form,
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result?.success) {
+      throw new Error(
+        result?.message || result?.error || "Failed to simplify PDF"
+      );
+    }
+
+    displayResults(result.data || {});
+    showToast("PDF simplified", "success");
+  } catch (e) {
+    showToast(e?.message || "Failed to simplify PDF", "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+    if (simplifyBtn) simplifyBtn.disabled = false;
+    event.target.value = "";
+  }
 }
 
 async function simplifyPaper() {
@@ -164,157 +238,867 @@ async function simplifyPaper() {
   const url = urlInput.value.trim();
 
   if (!url) {
-    showError("Please enter an ArXiv URL");
+    showToast("Please enter an ArXiv URL", "error");
     return;
   }
 
-  // Reset previous results
-  hideError();
-  hideResults();
-
-  // Update button state
   const btn = document.getElementById("simplifyBtn");
-  const btnText = btn.querySelector(".btn-text");
-  const btnLoader = btn.querySelector(".btn-loader");
-
+  const originalText = btn.innerHTML;
   btn.disabled = true;
-  btnText.style.display = "none";
-  btnLoader.style.display = "inline";
+  btn.innerHTML = '<span class="loader"></span> Processing...';
 
   try {
     const response = await fetch("/api/simplify", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ arxivUrl: url }),
     });
 
     const result = await response.json();
-
-    if (!result.success) {
+    if (!result.success)
       throw new Error(result.error || "Failed to simplify paper");
-    }
 
-    // Display results
     displayResults(result.data);
   } catch (error) {
-    showError(error.message || "An error occurred. Please try again.");
+    showToast(error.message || "An error occurred", "error");
   } finally {
-    // Reset button state
     btn.disabled = false;
-    btnText.style.display = "inline";
-    btnLoader.style.display = "none";
+    btn.innerHTML = originalText;
+  }
+}
+
+async function copyTextToClipboard(text) {
+  if (!text) throw new Error("Nothing to copy");
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "-9999px";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
+async function copyCitation() {
+  const citeBtn = document.getElementById("paperCiteBtn");
+  const arxivId = currentPaper?.arxivId;
+
+  if (!arxivId) {
+    showToast("No arXiv ID available for citation", "error");
+    return;
+  }
+
+  const original = citeBtn?.textContent || "Cite";
+  if (citeBtn) {
+    citeBtn.disabled = true;
+    citeBtn.textContent = "Loading…";
+  }
+
+  try {
+    const response = await apiRequest(
+      `/api/arxiv/${encodeURIComponent(arxivId)}/bibtex`
+    );
+    const bibtex = (response?.bibtex || "").toString().trim();
+    if (!bibtex) throw new Error("Failed to fetch BibTeX");
+    await copyTextToClipboard(bibtex);
+    showToast("BibTeX copied", "success");
+  } catch (e) {
+    showToast(e?.message || "Failed to copy citation", "error");
+  } finally {
+    if (citeBtn) {
+      citeBtn.disabled = false;
+      citeBtn.textContent = original;
+    }
   }
 }
 
 function displayResults(data) {
-  // Set paper info
+  document.getElementById("emptyState").style.display = "none";
+  document.getElementById("results").style.display = "block";
+  document.querySelector(".right-panel").style.display = "flex";
+
   document.getElementById("paperTitle").textContent = data.title;
   document.getElementById("paperAuthors").textContent = data.authors;
 
-  const date = new Date(data.published);
-  document.getElementById("paperDate").textContent = date.toLocaleDateString(
-    "en-US",
-    {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    }
-  );
+  const date = data.published ? new Date(data.published) : null;
+  document.getElementById("paperDate").textContent =
+    date && !Number.isNaN(date.getTime())
+      ? date.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : "";
 
   const pdfLink = document.getElementById("paperPdfLink");
-  pdfLink.href = data.pdfUrl;
+  if (data.pdfUrl) {
+    pdfLink.href = data.pdfUrl;
+    pdfLink.style.display = "inline-flex";
+  } else {
+    pdfLink.href = "#";
+    pdfLink.style.display = "none";
+  }
 
-  // Format and display summary
-  const summaryContent = document.getElementById("summaryContent");
-  summaryContent.innerHTML = formatSummary(data.simplifiedSummary);
+  const citeBtn = document.getElementById("paperCiteBtn");
+  if (citeBtn) citeBtn.style.display = data.arxivId ? "inline-flex" : "none";
 
-  // Store summary for copying
-  currentSummary = data.simplifiedSummary;
+  const exportBtn = document.getElementById("paperExportBtn");
+  if (exportBtn) exportBtn.style.display = "inline-flex";
 
-  // Show results
-  document.getElementById("results").style.display = "block";
+  // Parse Summary
+  const summaryText = (data.simplifiedSummary || "").toString();
+  const keyTermsMatch = summaryText.match(
+    /(\*\*\s*Key\s*Terms\s*:\s*\*\*|Key\s*Terms\s*:)/i
+  );
+  const keyTermsIndex = keyTermsMatch?.index ?? -1;
 
-  // Scroll to results
-  document.getElementById("results").scrollIntoView({
-    behavior: "smooth",
-    block: "start",
+  const mainSummary = (
+    keyTermsIndex >= 0 ? summaryText.slice(0, keyTermsIndex) : summaryText
+  ).trim();
+  let keyTerms =
+    keyTermsIndex >= 0 ? summaryText.slice(keyTermsIndex).trim() : "";
+  if (keyTerms) {
+    keyTerms = keyTerms.replace(
+      /^(\*\*\s*)?Key\s*Terms\s*:\s*(\*\*)?/i,
+      "**Key Terms:**"
+    );
+  }
+
+  document.getElementById("summaryContent").innerHTML =
+    formatMarkdown(mainSummary);
+
+  const takeawaysEl = document.getElementById("takeawaysContent");
+  if (keyTerms) {
+    takeawaysEl.innerHTML = formatMarkdown(keyTerms);
+    takeawaysEl.parentElement.style.display = "block";
+  } else {
+    takeawaysEl.parentElement.style.display = "none";
+  }
+
+  // Reset State
+  currentPaper = {
+    arxivId: data.arxivId || "",
+    title: data.title,
+    authors: data.authors,
+    abstract: data.abstract,
+    pdfUrl: data.pdfUrl,
+    summary: data.simplifiedSummary,
+    project: "",
+    tags: [],
+  };
+  currentPaperId = null;
+  currentTags = [];
+
+  document.getElementById("paperProject").value = "";
+  document.getElementById("userNotes").value = "";
+  renderTags();
+
+  // Update Save Button
+  updateSaveButtonState();
+}
+
+function safeFilename(name) {
+  return (name || "paper")
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
+}
+
+async function exportMarkdown() {
+  if (!currentPaper) {
+    showToast("No paper to export", "error");
+    return;
+  }
+
+  const title = currentPaper.title || "Untitled";
+  const authors = currentPaper.authors || "";
+  const project = document.getElementById("paperProject")?.value?.trim() || "";
+  const tags = Array.isArray(currentTags) ? currentTags : [];
+  const notes = document.getElementById("userNotes")?.value || "";
+  const summary = currentPaper.summary || "";
+  const pdfUrl = currentPaper.pdfUrl || "";
+
+  let bibtex = "";
+  if (currentPaper.arxivId) {
+    try {
+      const resp = await apiRequest(
+        `/api/arxiv/${encodeURIComponent(currentPaper.arxivId)}/bibtex`
+      );
+      bibtex = (resp?.bibtex || "").toString().trim();
+    } catch {
+      bibtex = "";
+    }
+  }
+
+  const qa = Array.isArray(currentQaHistory) ? currentQaHistory : [];
+
+  const lines = [];
+  lines.push(`# ${title}`);
+  if (authors) lines.push(`**Authors:** ${authors}`);
+  if (currentPaper.arxivId) lines.push(`**arXiv:** ${currentPaper.arxivId}`);
+  if (pdfUrl) lines.push(`**PDF:** ${pdfUrl}`);
+  if (project) lines.push(`**Project:** ${project}`);
+  if (tags.length) lines.push(`**Tags:** ${tags.join(", ")}`);
+  lines.push("");
+
+  lines.push("## Summary");
+  lines.push(summary || "(none)");
+  lines.push("");
+
+  lines.push("## Notes");
+  lines.push(notes?.trim() ? notes.trim() : "(none)");
+  lines.push("");
+
+  lines.push("## Q&A");
+  if (!qa.length) {
+    lines.push("(none)");
+  } else {
+    for (const m of qa) {
+      const role = m.role === "user" ? "You" : "AI";
+      lines.push(
+        `- **${role}:** ${String(m.text || "")
+          .replace(/\n/g, " ")
+          .trim()}`
+      );
+    }
+  }
+  lines.push("");
+
+  if (bibtex) {
+    lines.push("## BibTeX");
+    lines.push("```bibtex");
+    lines.push(bibtex);
+    lines.push("```");
+    lines.push("");
+  }
+
+  const md = lines.join("\n");
+  const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  const base = safeFilename(currentPaper.arxivId || title);
+  a.href = url;
+  a.download = `${base || "paper"}.md`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+
+  showToast("Exported Markdown", "success");
+}
+
+function formatMarkdown(text) {
+  if (!text) return "";
+
+  const escapeHtml = (str) =>
+    (str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const renderInline = (str) =>
+    str.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+  const lines = escapeHtml(text).replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  let inList = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      if (inList) {
+        out.push("</ul>");
+        inList = false;
+      }
+      continue;
+    }
+
+    const h3 = trimmed.match(/^##\s+(.*)$/);
+    const h4 = trimmed.match(/^###\s+(.*)$/);
+    const li = trimmed.match(/^[\-\•]\s+(.*)$/);
+
+    if (h4) {
+      if (inList) {
+        out.push("</ul>");
+        inList = false;
+      }
+      out.push(`<h4>${renderInline(h4[1])}</h4>`);
+      continue;
+    }
+
+    if (h3) {
+      if (inList) {
+        out.push("</ul>");
+        inList = false;
+      }
+      out.push(`<h3>${renderInline(h3[1])}</h3>`);
+      continue;
+    }
+
+    if (li) {
+      if (!inList) {
+        out.push("<ul>");
+        inList = true;
+      }
+      out.push(`<li>${renderInline(li[1])}</li>`);
+      continue;
+    }
+
+    if (inList) {
+      out.push("</ul>");
+      inList = false;
+    }
+
+    out.push(`<p>${renderInline(trimmed)}</p>`);
+  }
+
+  if (inList) out.push("</ul>");
+
+  return out.join("\n");
+}
+
+// --- Tags & Project ---
+
+function handleTagInput(event) {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    const val = event.target.value.trim();
+    if (val && !currentTags.includes(val)) {
+      currentTags.push(val);
+      renderTags();
+      event.target.value = "";
+      if (currentPaperId) savePaperUpdates();
+    }
+  }
+}
+
+function removeTag(tag) {
+  currentTags = currentTags.filter((t) => t !== tag);
+  renderTags();
+  if (currentPaperId) savePaperUpdates();
+}
+
+function renderTags() {
+  const container = document.getElementById("tagsList");
+  container.innerHTML = "";
+  currentTags.forEach((tag) => {
+    const chip = document.createElement("div");
+    chip.className = "tag-chip";
+
+    const label = document.createElement("span");
+    label.textContent = tag;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "tag-remove";
+    remove.textContent = "×";
+    remove.addEventListener("click", () => removeTag(tag));
+
+    chip.appendChild(label);
+    chip.appendChild(remove);
+    container.appendChild(chip);
   });
 }
 
-function formatSummary(summary) {
-  // Convert markdown-style formatting to HTML
-  let formatted = summary
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\n\n/g, "</p><p>")
-    .replace(/\n/g, "<br>");
-
-  // Wrap in paragraph tags
-  formatted = "<p>" + formatted + "</p>";
-
-  return formatted;
+function normalizeTags(raw) {
+  if (Array.isArray(raw))
+    return raw.map((t) => String(t).trim()).filter(Boolean);
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    if (!s) return [];
+    // Postgres array text format: {a,b}
+    if (s.startsWith("{") && s.endsWith("}")) {
+      return s
+        .slice(1, -1)
+        .split(",")
+        .map((t) => t.replace(/^"|"$/g, "").trim())
+        .filter(Boolean);
+    }
+    // JSON array string
+    try {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed))
+        return parsed.map((t) => String(t).trim()).filter(Boolean);
+    } catch {
+      // ignore
+    }
+    return s
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }
+  return [];
 }
 
-function showError(message) {
-  const errorDiv = document.getElementById("error");
-  errorDiv.textContent = message;
-  errorDiv.style.display = "block";
+function renderQaHistory(messages) {
+  const container = document.getElementById("qaHistory");
+  container.innerHTML = "";
+
+  if (!Array.isArray(messages) || messages.length === 0) {
+    const welcome = document.createElement("div");
+    welcome.className = "qa-welcome";
+    welcome.innerHTML = "<p>Ask questions about the paper.</p>";
+    container.appendChild(welcome);
+    return;
+  }
+
+  for (const m of messages) {
+    appendQaMessage(m.text, m.role === "user" ? "user" : "ai", m.id);
+  }
 }
 
-function hideError() {
-  document.getElementById("error").style.display = "none";
+async function persistQaHistory() {
+  if (!currentPaperId) return;
+  try {
+    await apiRequest(`/api/papers/${currentPaperId}`, {
+      method: "PATCH",
+      body: { qa_history: currentQaHistory },
+    });
+  } catch {
+    // ignore persistence errors (don't disrupt chat)
+  }
 }
 
-function hideResults() {
-  document.getElementById("results").style.display = "none";
+function updatePaperProject() {
+  if (currentPaper) {
+    currentPaper.project = document.getElementById("paperProject").value.trim();
+    if (currentPaperId) savePaperUpdates();
+  }
 }
 
-function copyToClipboard(event) {
-  const textArea = document.createElement("textarea");
-  textArea.value = currentSummary;
-  document.body.appendChild(textArea);
-  textArea.select();
+async function savePaper() {
+  if (!currentPaper) return;
+
+  const project = document.getElementById("paperProject").value.trim();
 
   try {
-    document.execCommand("copy");
+    const response = await apiRequest("/api/papers/import", {
+      method: "POST",
+      body: {
+        arxivUrl: `https://arxiv.org/abs/${currentPaper.arxivId}`,
+        summary: currentPaper.summary,
+        project,
+        tags: currentTags,
+      },
+    });
 
-    // Visual feedback
-    const btn = event?.target;
-    if (!btn) return;
-    const originalText = btn.textContent;
-    btn.textContent = "Copied";
-    btn.style.background = "var(--success)";
-
-    setTimeout(() => {
-      btn.textContent = originalText;
-      btn.style.background = "";
-    }, 2000);
-  } catch (err) {
-    showError("Failed to copy to clipboard");
+    if (response?.paper?.id) {
+      currentPaperId = response.paper.id;
+      currentPaper.project = response.paper.project || project;
+      currentPaper.tags = response.paper.tags || currentTags;
+      showToast("Paper saved to library", "success");
+      updateSaveButtonState();
+      await loadSavedPapers();
+    }
+  } catch (error) {
+    showToast(error?.message || "Failed to save paper", "error");
   }
-
-  document.body.removeChild(textArea);
 }
 
-function reset() {
-  document.getElementById("arxivUrl").value = "";
-  hideError();
-  hideResults();
-  document.getElementById("arxivUrl").focus();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+async function savePaperUpdates() {
+  if (!currentPaperId) return;
+
+  try {
+    const updated = await apiRequest(`/api/papers/${currentPaperId}`, {
+      method: "PATCH",
+      body: {
+        project: document.getElementById("paperProject").value.trim(),
+        tags: currentTags,
+        notes: document.getElementById("userNotes").value,
+      },
+    });
+
+    const paper = updated?.paper;
+    if (paper?.id) {
+      const idx = savedPapers.findIndex((p) => p.id === paper.id);
+      if (idx >= 0) savedPapers[idx] = { ...savedPapers[idx], ...paper };
+    }
+    document.getElementById("saveStatus").textContent = "Saved";
+  } catch (e) {
+    document.getElementById("saveStatus").textContent = "Error saving";
+  }
 }
 
-// Allow Enter key to submit
-document.getElementById("arxivUrl").addEventListener("keypress", (e) => {
-  if (e.key === "Enter") {
-    simplifyPaper();
+function updateSaveButtonState() {
+  const btn = document.getElementById("saveBtn");
+  if (currentPaperId) {
+    btn.innerHTML =
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg> Saved';
+    btn.classList.add("btn-primary");
+    btn.classList.remove("btn-outline");
+  } else {
+    btn.innerHTML =
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg> Save';
+    btn.classList.remove("btn-primary");
+    btn.classList.add("btn-outline");
   }
-});
+}
 
-// Auto-focus on input when page loads
-window.addEventListener("load", () => {
-  document.getElementById("arxivUrl").focus();
-  setAuthMode("signin");
+// --- Sidebar & Saved Papers ---
+
+async function loadSavedPapers() {
+  try {
+    const response = await apiRequest("/api/papers");
+    savedPapers = response.papers || [];
+    renderSavedList();
+  } catch (error) {
+    console.error("Failed to load saved papers", error);
+  }
+}
+
+function renderSavedList() {
+  const container = document.getElementById("savedList");
+  container.innerHTML = "";
+
+  const search = document.getElementById("savedSearch").value.toLowerCase();
+  const project = document.getElementById("projectFilter").value.toLowerCase();
+
+  const filtered = savedPapers.filter((p) => {
+    const matchesSearch = (p.title || "").toLowerCase().includes(search);
+    const matchesProject =
+      !project || (p.project || "").toLowerCase().includes(project);
+    return matchesSearch && matchesProject;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML =
+      '<div style="padding: 16px; text-align: center; color: var(--text-tertiary); font-size: 13px;">No papers found</div>';
+    return;
+  }
+
+  filtered.forEach((paper) => {
+    const item = document.createElement("div");
+    item.className = `nav-item ${currentPaperId === paper.id ? "active" : ""}`;
+    item.onclick = () => loadSavedPaper(paper);
+
+    const date = new Date(paper.created_at).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    });
+
+    item.innerHTML = `
+      <span class="nav-item-title">${paper.title}</span>
+      <div class="nav-item-meta">
+        <span>${paper.project || "No Project"}</span>
+        <span>${date}</span>
+      </div>
+    `;
+    container.appendChild(item);
+  });
+}
+
+async function loadSavedPaper(paper) {
+  const paperId = paper?.id;
+  if (!paperId) return;
+  currentPaperId = paperId;
+
+  let hydrated = paper;
+  try {
+    const response = await apiRequest(`/api/papers/${paperId}`);
+    if (response?.paper) hydrated = response.paper;
+  } catch {
+    // If hydrate fails, fall back to list payload
+  }
+
+  const arxivId =
+    (typeof hydrated.arxiv_id === "string" && hydrated.arxiv_id.trim()) ||
+    (typeof hydrated.arxivId === "string" && hydrated.arxivId.trim()) ||
+    (typeof hydrated.arxiv_url === "string" &&
+      hydrated.arxiv_url.split("/").pop()) ||
+    "";
+
+  const pdfUrl =
+    (typeof hydrated.pdf_url === "string" && hydrated.pdf_url) ||
+    (typeof hydrated.pdfUrl === "string" && hydrated.pdfUrl) ||
+    (typeof hydrated.arxiv_url === "string"
+      ? hydrated.arxiv_url.replace("abs", "pdf") + ".pdf"
+      : arxivId
+      ? `https://arxiv.org/pdf/${arxivId}.pdf`
+      : "#");
+
+  currentPaper = {
+    arxivId,
+    title: hydrated.title,
+    authors: hydrated.authors || "",
+    abstract: hydrated.abstract || "",
+    pdfUrl,
+    summary: hydrated.summary || "",
+    project: hydrated.project || "",
+    tags: normalizeTags(hydrated.tags),
+  };
+  currentTags = normalizeTags(hydrated.tags);
+  currentQaHistory = Array.isArray(hydrated.qa_history)
+    ? hydrated.qa_history
+    : Array.isArray(hydrated.qaHistory)
+    ? hydrated.qaHistory
+    : [];
+
+  // Update UI
+  document.getElementById("emptyState").style.display = "none";
+  document.getElementById("results").style.display = "block";
+  document.querySelector(".right-panel").style.display = "flex";
+
+  document.getElementById("paperTitle").textContent = hydrated.title;
+  document.getElementById("paperAuthors").textContent =
+    hydrated.authors || currentPaper.authors || "";
+  document.getElementById("paperDate").textContent = new Date(
+    hydrated.created_at
+  ).toLocaleDateString();
+  document.getElementById("paperPdfLink").href = currentPaper.pdfUrl;
+  const pdfLink = document.getElementById("paperPdfLink");
+  if (currentPaper.pdfUrl) {
+    pdfLink.style.display = "inline-flex";
+  } else {
+    pdfLink.style.display = "none";
+  }
+
+  const citeBtn = document.getElementById("paperCiteBtn");
+  if (citeBtn)
+    citeBtn.style.display = currentPaper.arxivId ? "inline-flex" : "none";
+
+  const exportBtn = document.getElementById("paperExportBtn");
+  if (exportBtn) exportBtn.style.display = "inline-flex";
+
+  // Summary
+  const summaryText = (hydrated.summary || "").toString();
+  const keyTermsMatch = summaryText.match(
+    /(\*\*\s*Key\s*Terms\s*:\s*\*\*|Key\s*Terms\s*:)/i
+  );
+  const keyTermsIndex = keyTermsMatch?.index ?? -1;
+
+  const mainSummary = (
+    keyTermsIndex >= 0 ? summaryText.slice(0, keyTermsIndex) : summaryText
+  ).trim();
+  let keyTerms =
+    keyTermsIndex >= 0 ? summaryText.slice(keyTermsIndex).trim() : "";
+  if (keyTerms) {
+    keyTerms = keyTerms.replace(
+      /^(\*\*\s*)?Key\s*Terms\s*:\s*(\*\*)?/i,
+      "**Key Terms:**"
+    );
+  }
+
+  document.getElementById("summaryContent").innerHTML =
+    formatMarkdown(mainSummary);
+
+  const takeawaysEl = document.getElementById("takeawaysContent");
+  if (keyTerms) {
+    takeawaysEl.innerHTML = formatMarkdown(keyTerms);
+    takeawaysEl.parentElement.style.display = "block";
+  } else {
+    takeawaysEl.parentElement.style.display = "none";
+  }
+
+  // Inputs
+  document.getElementById("paperProject").value = hydrated.project || "";
+  document.getElementById("userNotes").value = hydrated.notes || "";
+  renderTags();
+  renderQaHistory(currentQaHistory);
+  updateSaveButtonState();
+  renderSavedList(); // Update active state
+
+  const idx = savedPapers.findIndex((p) => p.id === hydrated.id);
+  if (idx >= 0) savedPapers[idx] = { ...savedPapers[idx], ...hydrated };
+}
+
+function searchSaved() {
+  renderSavedList();
+}
+
+function applyProjectFilter() {
+  renderSavedList();
+}
+
+function refreshSavedList() {
+  loadSavedPapers();
+}
+
+// --- Right Panel & Q&A ---
+
+function switchRightPanel(tab) {
+  document
+    .querySelectorAll(".panel-tab")
+    .forEach((t) => t.classList.remove("active"));
+  document
+    .querySelectorAll(".panel-content")
+    .forEach((c) => (c.style.display = "none"));
+
+  if (tab === "notes") {
+    document.querySelector(".panel-tab:nth-child(1)").classList.add("active");
+    document.getElementById("panelNotes").style.display = "flex";
+  } else {
+    document.querySelector(".panel-tab:nth-child(2)").classList.add("active");
+    document.getElementById("panelQa").style.display = "flex";
+  }
+}
+
+let notesTimeout;
+function autoSaveNotes() {
+  document.getElementById("saveStatus").textContent = "Saving...";
+  clearTimeout(notesTimeout);
+  notesTimeout = setTimeout(() => {
+    if (currentPaperId) {
+      savePaperUpdates();
+    } else {
+      document.getElementById("saveStatus").textContent = "Saved (Local)";
+    }
+  }, 1000);
+}
+
+async function sendQa() {
+  const input = document.getElementById("qaInput");
+  const question = input.value.trim();
+  if (!question) return;
+
+  const userId = appendQaMessage(question, "user");
+  currentQaHistory.push({
+    id: userId,
+    role: "user",
+    text: question,
+    ts: Date.now(),
+  });
+  input.value = "";
+
+  const msgId = appendQaMessage("Thinking...", "ai");
+  currentQaHistory.push({
+    id: msgId,
+    role: "ai",
+    text: "Thinking...",
+    ts: Date.now(),
+  });
+
+  try {
+    const endpoint = currentPaperId
+      ? `/api/qa/saved/${currentPaperId}`
+      : "/api/qa/live";
+    // Fallback to summary if live and no full text available
+    const body = currentPaperId
+      ? { question }
+      : {
+          question,
+          paper: {
+            title: currentPaper?.title,
+            abstract: currentPaper?.abstract,
+            summary: currentPaper?.summary,
+          },
+        };
+
+    const response = await apiRequest(endpoint, {
+      method: "POST",
+      body,
+    });
+
+    if (response.answer) {
+      let text = response.answer;
+
+      if (Array.isArray(response.sources) && response.sources.length) {
+        const lines = response.sources
+          .slice(0, 3)
+          .map((s) => `- ${s.label}: ${s.text}`);
+        text += `\n\nSources:\n${lines.join("\n")}`;
+      }
+
+      updateQaMessage(msgId, text);
+
+      const idx = currentQaHistory.findIndex((m) => m.id === msgId);
+      if (idx >= 0) currentQaHistory[idx] = { ...currentQaHistory[idx], text };
+      await persistQaHistory();
+    } else {
+      updateQaMessage(msgId, "I couldn't generate an answer.");
+
+      const idx = currentQaHistory.findIndex((m) => m.id === msgId);
+      if (idx >= 0)
+        currentQaHistory[idx] = {
+          ...currentQaHistory[idx],
+          text: "I couldn't generate an answer.",
+        };
+      await persistQaHistory();
+    }
+  } catch (error) {
+    updateQaMessage(
+      msgId,
+      "Error: " + (error.message || "Failed to get answer")
+    );
+
+    const idx = currentQaHistory.findIndex((m) => m.id === msgId);
+    if (idx >= 0)
+      currentQaHistory[idx] = {
+        ...currentQaHistory[idx],
+        text: "Error: " + (error.message || "Failed to get answer"),
+      };
+    await persistQaHistory();
+  }
+}
+
+function handleQaKey(event) {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    sendQa();
+  }
+}
+
+function appendQaMessage(text, role, forcedId) {
+  const container = document.getElementById("qaHistory");
+  const div = document.createElement("div");
+  div.className = `qa-message ${role}`;
+  div.textContent = text;
+  div.id =
+    forcedId || "msg-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div.id;
+}
+
+function updateQaMessage(id, text) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.textContent = text;
+    el.parentElement.scrollTop = el.parentElement.scrollHeight;
+  }
+}
+
+// --- Toast ---
+function showToast(message, type = "info") {
+  const container = document.getElementById("toastContainer");
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+
+  // Add styles dynamically if not in CSS
+  toast.style.background = type === "error" ? "#fee2e2" : "#333";
+  toast.style.color = type === "error" ? "#991b1b" : "#fff";
+  toast.style.padding = "12px 24px";
+  toast.style.borderRadius = "8px";
+  toast.style.marginTop = "10px";
+  toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+  toast.style.fontSize = "14px";
+  toast.style.animation = "fadeIn 0.3s ease";
+
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// --- Init ---
+document.addEventListener("DOMContentLoaded", () => {
   refreshSession();
 });
