@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: paperplain-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: paperplain
+      POSTGRES_PASSWORD: paperplain
+      POSTGRES_DB: paperplain
+    volumes:
+      - paperplain_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperplain -d paperplain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  paperplain_pgdata:

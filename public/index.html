@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paper Plain - Academic Paper De-Jargoner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="site-header">
+        <div class="brand">
+          <h1>Paper Plain</h1>
+          <p class="tagline">
+            Clear, concise summaries for researchers and students
+          </p>
+        </div>
+
+        <div class="account">
+          <p class="account-status" id="accountStatus">Checking session…</p>
+          <div class="account-actions">
+            <button
+              id="toggleAuthBtn"
+              class="secondary-btn"
+              onclick="toggleAuthPanel()"
+            >
+              Sign in
+            </button>
+            <button
+              id="signOutBtn"
+              class="secondary-btn"
+              style="display: none"
+              onclick="signOut()"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section id="authPanel" class="auth-panel" style="display: none">
+          <div class="auth-tabs" role="tablist" aria-label="Authentication">
+            <button
+              id="tabSignIn"
+              class="secondary-btn auth-tab is-active"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              onclick="setAuthMode('signin')"
+            >
+              Sign in
+            </button>
+            <button
+              id="tabSignUp"
+              class="secondary-btn auth-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              onclick="setAuthMode('signup')"
+            >
+              Create account
+            </button>
+          </div>
+
+          <div id="authError" class="error" style="display: none"></div>
+
+          <form class="auth-form" onsubmit="submitAuth(event)">
+            <div id="signUpFields" style="display: none">
+              <label class="field">
+                <span class="label">Name</span>
+                <input type="text" id="authName" autocomplete="name" />
+              </label>
+            </div>
+
+            <label class="field">
+              <span class="label">Email</span>
+              <input type="text" id="authEmail" autocomplete="email" />
+            </label>
+
+            <label class="field">
+              <span class="label">Password</span>
+              <input
+                type="password"
+                id="authPassword"
+                autocomplete="current-password"
+              />
+            </label>
+
+            <div class="auth-submit">
+              <button id="authSubmitBtn" type="submit">
+                <span class="btn-text" id="authSubmitText">Sign in</span>
+                <span
+                  class="btn-loader"
+                  id="authSubmitLoader"
+                  style="display: none"
+                  >Working…</span
+                >
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <div class="input-section">
+          <div class="input-group">
+            <input
+              type="text"
+              id="arxivUrl"
+              placeholder="Paste an arXiv link (e.g., https://arxiv.org/abs/2301.00234)"
+              autocomplete="off"
+            />
+            <button id="simplifyBtn" onclick="simplifyPaper()">
+              <span class="btn-text">Simplify Paper</span>
+              <span class="btn-loader" style="display: none">Processing…</span>
+            </button>
+          </div>
+          <p class="hint">
+            Tip: Find papers on
+            <a href="https://arxiv.org" target="_blank" rel="noreferrer"
+              >arxiv.org</a
+            >
+          </p>
+        </div>
+
+        <div id="error" class="error" style="display: none"></div>
+
+        <div id="results" class="results" style="display: none">
+          <div class="paper-info">
+            <h2 id="paperTitle"></h2>
+            <p class="authors" id="paperAuthors"></p>
+            <p class="meta">
+              <span id="paperDate"></span> •
+              <a id="paperPdfLink" href="#" target="_blank" rel="noreferrer"
+                >Download PDF</a
+              >
+            </p>
+          </div>
+
+          <div class="summary-section">
+            <h3>Plain English Summary</h3>
+            <div id="summaryContent" class="summary-content"></div>
+          </div>
+
+          <div class="action-buttons">
+            <button onclick="copyToClipboard(event)" class="secondary-btn">
+              Copy summary
+            </button>
+            <button onclick="reset()" class="secondary-btn">New paper</button>
+          </div>
+        </div>
+      </main>
+
+      <footer>
+        <p>Built for researchers and students</p>
+      </footer>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
