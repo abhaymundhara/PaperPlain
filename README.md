@@ -29,8 +29,10 @@ Academic Paper De-Jargoner — transform complex research papers into plain Engl
 3. **Set up a hosted Postgres (free via Supabase):**
 
    - Create a free Supabase project at https://supabase.com (includes 500MB Postgres).
-   - In Supabase: Project Settings → Database → Connection string → URI; copy the Postgres URL (often ends with `?sslmode=require`).
-   - Set that as `DATABASE_URL` in `.env` and in your Vercel project envs.
+   - In Supabase: Project Settings → Database → Connection string → URI.
+     - If the dashboard shows **Direct connection** as "Not IPv4 compatible" (IPv6-only), Vercel may not be able to reach it.
+     - For Vercel, prefer **Session Pooler** (or **Transaction Pooler**) connection strings instead of Direct.
+   - Copy the Postgres URL and set it as `DATABASE_URL` in `.env` and in your Vercel project envs.
    - Set `BETTER_AUTH_SECRET` to a long random value (generate with `npm run auth:secret`).
    - Set `BETTER_AUTH_URL` to your deployed URL (e.g. `https://paperplain.vercel.app`); keep `http://localhost:3000` for local dev.
 

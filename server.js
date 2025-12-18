@@ -4,12 +4,11 @@ import dotenv from "dotenv";
 import axios from "axios";
 import xml2js from "xml2js";
 import multer from "multer";
-import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { createClient } from "@supabase/supabase-js";
 import Groq from "groq-sdk";
 import { APIError } from "better-auth/api";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
-import { auth } from "./auth.js";
+import { getAuth } from "./auth.js";
 import { dbHealthCheck, pool } from "./db.js";
 import fs from "fs";
 import path from "path";
@@ -211,22 +210,23 @@ app.use(
 );
 
 // Better Auth handler (must be mounted before express.json)
-if (auth) {
-  app.all("/api/better-auth/*", toNodeHandler(auth));
-} else {
-  app.all("/api/better-auth/*", (_req, res) => {
-    res.status(503).json({
+app.all("/api/better-auth/*", (req, res) => {
+  const auth = getAuth();
+  if (!auth) {
+    return res.status(503).json({
       message: "Auth is not configured. Set DATABASE_URL to enable it.",
     });
-  });
-}
+  }
+  return toNodeHandler(auth)(req, res);
+});
 
 app.use(express.json());
 app.use(express.static("public"));
 
 async function ensurePapersTable() {
   if (!pool) return;
-  await pool.query(`
+  await pgQuery(
+    `
     CREATE TABLE IF NOT EXISTS papers (
       id SERIAL PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -243,12 +243,25 @@ async function ensurePapersTable() {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(user_id, arxiv_id)
     );
-  `);
+  `,
+    [],
+    "ensurePapersTable.create"
+  );
 
-  await pool.query(`ALTER TABLE papers ADD COLUMN IF NOT EXISTS project TEXT;`);
-  await pool.query(`ALTER TABLE papers ADD COLUMN IF NOT EXISTS tags TEXT[];`);
-  await pool.query(
-    `ALTER TABLE papers ADD COLUMN IF NOT EXISTS qa_history JSONB DEFAULT '[]'::jsonb;`
+  await pgQuery(
+    `ALTER TABLE papers ADD COLUMN IF NOT EXISTS project TEXT;`,
+    [],
+    "ensurePapersTable.alter.project"
+  );
+  await pgQuery(
+    `ALTER TABLE papers ADD COLUMN IF NOT EXISTS tags TEXT[];`,
+    [],
+    "ensurePapersTable.alter.tags"
+  );
+  await pgQuery(
+    `ALTER TABLE papers ADD COLUMN IF NOT EXISTS qa_history JSONB DEFAULT '[]'::jsonb;`,
+    [],
+    "ensurePapersTable.alter.qa_history"
   );
 }
 
@@ -258,6 +271,7 @@ function requireAuthSession() {
       req.user = { id: "dev-user", email: "dev@example.com" };
       return next();
     }
+    const auth = getAuth();
     if (!auth) return res.status(401).json({ message: "Sign in required" });
     try {
       const session = await auth.api.getSession({
@@ -384,6 +398,15 @@ function withTimeout(promise, ms, label) {
   });
 
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function pgQuery(queryText, params, label) {
+  if (!pool) {
+    const err = new Error("Database not configured");
+    err.statusCode = 503;
+    throw err;
+  }
+  return withTimeout(pool.query(queryText, params), 8000, label || "pg.query");
 }
 
 async function pipeWebResponseToExpress(res, response) {
@@ -620,6 +643,7 @@ function buildQaSources({ question, paper }) {
 
 // Auth wrapper routes (vanilla JS frontend; Better Auth remains mounted separately)
 app.post("/api/auth/signup", async (req, res) => {
+  const auth = getAuth();
   if (!auth) {
     return res.status(503).json({
       message: "Auth is not configured. Set DATABASE_URL to enable it.",
@@ -676,6 +700,7 @@ app.post("/api/auth/signup", async (req, res) => {
 });
 
 app.post("/api/auth/signin", async (req, res) => {
+  const auth = getAuth();
   if (!auth) {
     return res.status(503).json({
       message: "Auth is not configured. Set DATABASE_URL to enable it.",
@@ -730,6 +755,7 @@ app.post("/api/auth/signin", async (req, res) => {
 });
 
 app.post("/api/auth/signout", async (req, res) => {
+  const auth = getAuth();
   if (!auth) {
     return res.status(503).json({
       message: "Auth is not configured. Set DATABASE_URL to enable it.",
@@ -759,6 +785,7 @@ app.get("/api/auth/me", async (req, res) => {
   if (SKIP_AUTH) {
     return res.json({ user: { id: "dev-user", email: "dev@example.com" } });
   }
+  const auth = getAuth();
   if (!auth) {
     return res.json(null);
   }
@@ -842,6 +869,7 @@ app.post("/api/simplify/pdf", pdfUpload.single("pdf"), async (req, res) => {
       return res.status(400).json({ success: false, error: "PDF is required" });
     }
 
+    const { default: pdfParse } = await import("pdf-parse/lib/pdf-parse.js");
     const parsed = await pdfParse(buffer);
     const rawText = (parsed?.text || "").toString();
     const text = rawText.replace(/\r\n/g, "\n").trim();
@@ -977,17 +1005,21 @@ app.post("/api/papers/import", requireAuthSession(), async (req, res) => {
       RETURNING *;
     `;
 
-    const result = await pool.query(insertQuery, [
-      req.user.id,
-      arxivId,
-      paperData.title,
-      paperData.authors,
-      paperData.abstract,
-      paperData.pdfUrl,
-      mergedSummary,
-      cleanProject,
-      cleanTags,
-    ]);
+    const result = await pgQuery(
+      insertQuery,
+      [
+        req.user.id,
+        arxivId,
+        paperData.title,
+        paperData.authors,
+        paperData.abstract,
+        paperData.pdfUrl,
+        mergedSummary,
+        cleanProject,
+        cleanTags,
+      ],
+      "papers.import"
+    );
 
     res.json({ success: true, paper: result.rows[0] });
   } catch (error) {
@@ -1033,17 +1065,21 @@ app.post("/api/papers/manual", requireAuthSession(), async (req, res) => {
       RETURNING *;
     `;
 
-    const result = await pool.query(insertQuery, [
-      req.user.id,
-      title,
-      authors,
-      abstract,
-      pdfUrl,
-      summary,
-      notes,
-      project,
-      tags,
-    ]);
+    const result = await pgQuery(
+      insertQuery,
+      [
+        req.user.id,
+        title,
+        authors,
+        abstract,
+        pdfUrl,
+        summary,
+        notes,
+        project,
+        tags,
+      ],
+      "papers.manual"
+    );
 
     res.json({ success: true, paper: result.rows[0] });
   } catch (error) {
@@ -1075,7 +1111,7 @@ app.get("/api/papers", requireAuthSession(), async (req, res) => {
 
   try {
     await ensurePapersTable();
-    const result = await pool.query(query, values);
+    const result = await pgQuery(query, values, "papers.list");
     res.json({ success: true, papers: result.rows });
   } catch (error) {
     res
@@ -1089,12 +1125,13 @@ app.get("/api/papers/:id", requireAuthSession(), async (req, res) => {
     return res.status(503).json({ message: "Database not configured" });
   try {
     await ensurePapersTable();
-    const result = await pool.query(
+    const result = await pgQuery(
       `SELECT id, arxiv_id, title, authors, abstract, pdf_url, summary, notes, project, tags, qa_history, created_at
        FROM papers
        WHERE id = $1 AND user_id = $2
        LIMIT 1`,
-      [req.params.id, req.user.id]
+      [req.params.id, req.user.id],
+      "papers.get"
     );
     if (!result.rowCount) return res.status(404).json({ message: "Not found" });
     res.json({ success: true, paper: result.rows[0] });
@@ -1160,7 +1197,7 @@ app.patch("/api/papers/:id", requireAuthSession(), async (req, res) => {
 
   try {
     await ensurePapersTable();
-    const result = await pool.query(query, values);
+    const result = await pgQuery(query, values, "papers.update");
     if (!result.rowCount) return res.status(404).json({ message: "Not found" });
     res.json({ success: true, paper: result.rows[0] });
   } catch (error) {
@@ -1175,9 +1212,10 @@ app.delete("/api/papers/:id", requireAuthSession(), async (req, res) => {
     return res.status(503).json({ message: "Database not configured" });
   try {
     await ensurePapersTable();
-    const result = await pool.query(
+    const result = await pgQuery(
       "DELETE FROM papers WHERE id = $1 AND user_id = $2",
-      [req.params.id, req.user.id]
+      [req.params.id, req.user.id],
+      "papers.delete"
     );
     if (!result.rowCount) return res.status(404).json({ message: "Not found" });
     res.json({ success: true });
@@ -1206,9 +1244,10 @@ app.post("/api/qa/saved/:id", requireAuthSession(), async (req, res) => {
   try {
     await ensurePapersTable();
     const question = assertString(req.body?.question, "question");
-    const result = await pool.query(
+    const result = await pgQuery(
       `SELECT title, authors, abstract, summary FROM papers WHERE id = $1 AND user_id = $2 LIMIT 1`,
-      [req.params.id, req.user.id]
+      [req.params.id, req.user.id],
+      "qa.saved.getPaper"
     );
     if (!result.rowCount) return res.status(404).json({ message: "Not found" });
     const paper = result.rows[0];
@@ -1224,7 +1263,7 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     message: "Paper Plain API is running",
-    authEnabled: Boolean(auth),
+    authEnabled: Boolean(process.env.DATABASE_URL),
   });
 });
 
