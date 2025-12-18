@@ -39,8 +39,20 @@ const supabase =
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const uploadsDir = path.join(__dirname, "public", "uploads");
-fs.mkdirSync(uploadsDir, { recursive: true });
+// Note: Vercel/serverless filesystems are ephemeral and the project directory
+// may be read-only. Only use disk uploads in local/dev, and prefer /tmp.
+const uploadsDir = process.env.VERCEL
+  ? path.join("/tmp", "paperplain-uploads")
+  : path.join(__dirname, "public", "uploads");
+
+if (!supabase) {
+  try {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  } catch (e) {
+    // If this fails in a restricted environment, we'll surface a clearer error
+    // when the PDF endpoint is used.
+  }
+}
 
 function safeUploadFilename(originalname) {
   const base = (originalname || "upload.pdf")
