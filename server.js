@@ -1332,6 +1332,7 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     message: "Paper Plain API is running",
     authEnabled: Boolean(process.env.DATABASE_URL),
+    betterAuthUrl: process.env.BETTER_AUTH_URL || "NOT_SET",
   });
 });
 
