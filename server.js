@@ -1333,6 +1333,8 @@ app.get("/api/health", (req, res) => {
     message: "Paper Plain API is running",
     authEnabled: Boolean(process.env.DATABASE_URL),
     betterAuthUrl: process.env.BETTER_AUTH_URL || "NOT_SET",
+    timestamp: new Date().toISOString(),
+    nodeEnv: process.env.NODE_ENV,
   });
 });
 
