@@ -1339,6 +1339,20 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// New uncached health endpoint to test deployment
+app.get("/api/health-fresh", (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.json({
+    status: "ok",
+    message: "Fresh deployment test [BUILD-v2]",
+    deploymentTime: new Date().toISOString(),
+    lazyLoadEnabled: true,
+    version: "v2.0.0",
+  });
+});
+
 // Only start a listener in non-serverless (local dev) environments
 if (!process.env.VERCEL) {
   app.listen(PORT, () => {
