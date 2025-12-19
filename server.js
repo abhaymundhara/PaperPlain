@@ -5,9 +5,6 @@ import axios from "axios";
 import xml2js from "xml2js";
 import multer from "multer";
 import { createClient } from "@supabase/supabase-js";
-import Groq from "groq-sdk";
-import { APIError } from "better-auth/api";
-import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import { getAuth } from "./auth.js";
 import { dbHealthCheck, pool } from "./db.js";
 import fs from "fs";
@@ -19,6 +16,35 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SKIP_AUTH = process.env.SKIP_AUTH === "true";
+
+function asyncHandler(fn) {
+  return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+}
+
+let cachedGroq;
+async function getGroqClient() {
+  if (cachedGroq) return cachedGroq;
+  const { default: Groq } = await import("groq-sdk");
+  cachedGroq = new Groq({
+    apiKey: process.env.GROQ_API_KEY,
+  });
+  return cachedGroq;
+}
+
+let cachedBetterAuthNode;
+async function getBetterAuthNode() {
+  if (cachedBetterAuthNode) return cachedBetterAuthNode;
+  cachedBetterAuthNode = await import("better-auth/node");
+  return cachedBetterAuthNode;
+}
+
+let cachedAPIError;
+async function getAPIErrorClass() {
+  if (cachedAPIError) return cachedAPIError;
+  const mod = await import("better-auth/api");
+  cachedAPIError = mod.APIError;
+  return cachedAPIError;
+}
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || "").trim();
 const SUPABASE_SERVICE_ROLE_KEY = (
@@ -196,11 +222,6 @@ function parseLabeledPdfExtraction(raw) {
   };
 }
 
-// Initialize Groq
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
-
 // Middleware
 app.use(
   cors({
@@ -210,15 +231,19 @@ app.use(
 );
 
 // Better Auth handler (must be mounted before express.json)
-app.all("/api/better-auth/*", (req, res) => {
-  const auth = getAuth();
-  if (!auth) {
-    return res.status(503).json({
-      message: "Auth is not configured. Set DATABASE_URL to enable it.",
-    });
-  }
-  return toNodeHandler(auth)(req, res);
-});
+app.all(
+  "/api/better-auth/*",
+  asyncHandler(async (req, res) => {
+    const auth = await getAuth();
+    if (!auth) {
+      return res.status(503).json({
+        message: "Auth is not configured. Set DATABASE_URL to enable it.",
+      });
+    }
+    const { toNodeHandler } = await getBetterAuthNode();
+    return toNodeHandler(auth)(req, res);
+  })
+);
 
 app.use(express.json());
 app.use(express.static("public"));
@@ -271,9 +296,10 @@ function requireAuthSession() {
       req.user = { id: "dev-user", email: "dev@example.com" };
       return next();
     }
-    const auth = getAuth();
+    const auth = await getAuth();
     if (!auth) return res.status(401).json({ message: "Sign in required" });
     try {
+      const { fromNodeHeaders } = await getBetterAuthNode();
       const session = await auth.api.getSession({
         headers: fromNodeHeaders(req.headers),
       });
@@ -469,6 +495,7 @@ Format your response as follows:
 Use simple language, avoid jargon, and make it accessible to someone without expertise in this field.`;
 
   try {
+    const groq = await getGroqClient();
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages: [
@@ -551,6 +578,7 @@ ${context}
 Question: ${question}
 Answer:`;
 
+  const groq = await getGroqClient();
   const completion = await groq.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     messages: [
@@ -642,168 +670,187 @@ function buildQaSources({ question, paper }) {
 }
 
 // Auth wrapper routes (vanilla JS frontend; Better Auth remains mounted separately)
-app.post("/api/auth/signup", async (req, res) => {
-  const auth = getAuth();
-  if (!auth) {
-    return res.status(503).json({
-      message: "Auth is not configured. Set DATABASE_URL to enable it.",
-    });
-  }
+app.post(
+  "/api/auth/signup",
+  asyncHandler(async (req, res) => {
+    const auth = await getAuth();
+    if (!auth) {
+      return res.status(503).json({
+        message: "Auth is not configured. Set DATABASE_URL to enable it.",
+      });
+    }
 
-  const reqId = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-  const startedAt = Date.now();
-  try {
-    const name = assertString(req.body?.name, "name");
-    const email = assertString(req.body?.email, "email");
-    const password = assertString(req.body?.password, "password");
+    const reqId = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+    const startedAt = Date.now();
+    try {
+      const name = assertString(req.body?.name, "name");
+      const email = assertString(req.body?.email, "email");
+      const password = assertString(req.body?.password, "password");
 
-    console.log("[auth] signup:start", { reqId });
+      console.log("[auth] signup:start", { reqId });
 
-    const response = await withTimeout(
-      auth.api.signUpEmail({
+      const { fromNodeHeaders } = await getBetterAuthNode();
+      const response = await withTimeout(
+        auth.api.signUpEmail({
+          headers: fromNodeHeaders(req.headers),
+          body: {
+            name,
+            email,
+            password,
+          },
+          asResponse: true,
+        }),
+        12000,
+        "auth.signUpEmail"
+      );
+
+      await pipeWebResponseToExpress(res, response);
+    } catch (error) {
+      console.error("[auth] signup:error", {
+        reqId,
+        durationMs: Date.now() - startedAt,
+        message: error?.message,
+      });
+      const APIError = await getAPIErrorClass();
+      if (error instanceof APIError) {
+        return res.status(error.status).json({
+          message: error.message,
+        });
+      }
+
+      const statusCode = error?.statusCode ?? 500;
+      res.status(statusCode).json({
+        message: error?.message ?? "Failed to sign up",
+        reqId,
+      });
+    } finally {
+      console.log("[auth] signup:end", {
+        reqId,
+        durationMs: Date.now() - startedAt,
+      });
+    }
+  })
+);
+
+app.post(
+  "/api/auth/signin",
+  asyncHandler(async (req, res) => {
+    const auth = await getAuth();
+    if (!auth) {
+      return res.status(503).json({
+        message: "Auth is not configured. Set DATABASE_URL to enable it.",
+      });
+    }
+    const reqId = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+    const startedAt = Date.now();
+    try {
+      const email = assertString(req.body?.email, "email");
+      const password = assertString(req.body?.password, "password");
+
+      console.log("[auth] signin:start", { reqId });
+
+      const { fromNodeHeaders } = await getBetterAuthNode();
+      const response = await withTimeout(
+        auth.api.signInEmail({
+          headers: fromNodeHeaders(req.headers),
+          body: {
+            email,
+            password,
+            rememberMe: true,
+          },
+          asResponse: true,
+        }),
+        12000,
+        "auth.signInEmail"
+      );
+
+      await pipeWebResponseToExpress(res, response);
+    } catch (error) {
+      console.error("[auth] signin:error", {
+        reqId,
+        durationMs: Date.now() - startedAt,
+        message: error?.message,
+      });
+      const APIError = await getAPIErrorClass();
+      if (error instanceof APIError) {
+        return res.status(error.status).json({
+          message: error.message,
+        });
+      }
+
+      const statusCode = error?.statusCode ?? 500;
+      res.status(statusCode).json({
+        message: error?.message ?? "Failed to sign in",
+        reqId,
+      });
+    } finally {
+      console.log("[auth] signin:end", {
+        reqId,
+        durationMs: Date.now() - startedAt,
+      });
+    }
+  })
+);
+
+app.post(
+  "/api/auth/signout",
+  asyncHandler(async (req, res) => {
+    const auth = await getAuth();
+    if (!auth) {
+      return res.status(503).json({
+        message: "Auth is not configured. Set DATABASE_URL to enable it.",
+      });
+    }
+    try {
+      const { fromNodeHeaders } = await getBetterAuthNode();
+      const response = await auth.api.signOut({
         headers: fromNodeHeaders(req.headers),
-        body: {
-          name,
-          email,
-          password,
-        },
         asResponse: true,
-      }),
-      12000,
-      "auth.signUpEmail"
-    );
+      });
 
-    await pipeWebResponseToExpress(res, response);
-  } catch (error) {
-    console.error("[auth] signup:error", {
-      reqId,
-      durationMs: Date.now() - startedAt,
-      message: error?.message,
-    });
-    if (error instanceof APIError) {
-      return res.status(error.status).json({
-        message: error.message,
+      await pipeWebResponseToExpress(res, response);
+    } catch (error) {
+      const APIError = await getAPIErrorClass();
+      if (error instanceof APIError) {
+        return res.status(error.status).json({
+          message: error.message,
+        });
+      }
+
+      res.status(500).json({
+        message: error?.message ?? "Failed to sign out",
       });
     }
+  })
+);
 
-    const statusCode = error?.statusCode ?? 500;
-    res.status(statusCode).json({
-      message: error?.message ?? "Failed to sign up",
-      reqId,
-    });
-  } finally {
-    console.log("[auth] signup:end", {
-      reqId,
-      durationMs: Date.now() - startedAt,
-    });
-  }
-});
-
-app.post("/api/auth/signin", async (req, res) => {
-  const auth = getAuth();
-  if (!auth) {
-    return res.status(503).json({
-      message: "Auth is not configured. Set DATABASE_URL to enable it.",
-    });
-  }
-  const reqId = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-  const startedAt = Date.now();
-  try {
-    const email = assertString(req.body?.email, "email");
-    const password = assertString(req.body?.password, "password");
-
-    console.log("[auth] signin:start", { reqId });
-
-    const response = await withTimeout(
-      auth.api.signInEmail({
-        headers: fromNodeHeaders(req.headers),
-        body: {
-          email,
-          password,
-          rememberMe: true,
-        },
-        asResponse: true,
-      }),
-      12000,
-      "auth.signInEmail"
-    );
-
-    await pipeWebResponseToExpress(res, response);
-  } catch (error) {
-    console.error("[auth] signin:error", {
-      reqId,
-      durationMs: Date.now() - startedAt,
-      message: error?.message,
-    });
-    if (error instanceof APIError) {
-      return res.status(error.status).json({
-        message: error.message,
+app.get(
+  "/api/auth/me",
+  asyncHandler(async (req, res) => {
+    if (SKIP_AUTH) {
+      return res.json({ user: { id: "dev-user", email: "dev@example.com" } });
+    }
+    const auth = await getAuth();
+    if (!auth) {
+      return res.json(null);
+    }
+    try {
+      const { fromNodeHeaders } = await getBetterAuthNode();
+      const session = await withTimeout(
+        auth.api.getSession({
+          headers: fromNodeHeaders(req.headers),
+        }),
+        8000,
+        "auth.getSession"
+      );
+      res.json(session);
+    } catch (error) {
+      res.status(500).json({
+        message: error?.message ?? "Failed to get session",
       });
     }
-
-    const statusCode = error?.statusCode ?? 500;
-    res.status(statusCode).json({
-      message: error?.message ?? "Failed to sign in",
-      reqId,
-    });
-  } finally {
-    console.log("[auth] signin:end", {
-      reqId,
-      durationMs: Date.now() - startedAt,
-    });
-  }
-});
-
-app.post("/api/auth/signout", async (req, res) => {
-  const auth = getAuth();
-  if (!auth) {
-    return res.status(503).json({
-      message: "Auth is not configured. Set DATABASE_URL to enable it.",
-    });
-  }
-  try {
-    const response = await auth.api.signOut({
-      headers: fromNodeHeaders(req.headers),
-      asResponse: true,
-    });
-
-    await pipeWebResponseToExpress(res, response);
-  } catch (error) {
-    if (error instanceof APIError) {
-      return res.status(error.status).json({
-        message: error.message,
-      });
-    }
-
-    res.status(500).json({
-      message: error?.message ?? "Failed to sign out",
-    });
-  }
-});
-
-app.get("/api/auth/me", async (req, res) => {
-  if (SKIP_AUTH) {
-    return res.json({ user: { id: "dev-user", email: "dev@example.com" } });
-  }
-  const auth = getAuth();
-  if (!auth) {
-    return res.json(null);
-  }
-  try {
-    const session = await withTimeout(
-      auth.api.getSession({
-        headers: fromNodeHeaders(req.headers),
-      }),
-      8000,
-      "auth.getSession"
-    );
-    res.json(session);
-  } catch (error) {
-    res.status(500).json({
-      message: error?.message ?? "Failed to get session",
-    });
-  }
-});
+  })
+);
 
 app.get("/api/health/db", async (_req, res) => {
   try {
@@ -898,6 +945,7 @@ ${excerpt}`;
     let abstract = "";
 
     try {
+      const groq = await getGroqClient();
       const extraction = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [

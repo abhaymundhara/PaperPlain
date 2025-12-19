@@ -14,10 +14,30 @@ const INSECURE_SSL = isTruthy(process.env.INSECURE_SSL);
 const IS_PROD =
   process.env.NODE_ENV === "production" || isTruthy(process.env.VERCEL);
 
-const sslCa =
-  typeof process.env.PGSSLROOTCERT === "string"
-    ? process.env.PGSSLROOTCERT.trim()
-    : "";
+function normalizePem(pem) {
+  if (typeof pem !== "string") return "";
+  let out = pem.trim();
+  // Some env UIs store multi-line PEMs as a single line with literal "\n".
+  if (out.includes("\\n") && !out.includes("\n")) {
+    out = out.replace(/\\n/g, "\n");
+  }
+  return out;
+}
+
+let sslCa = normalizePem(process.env.PGSSLROOTCERT);
+
+// Alternative: allow base64-encoded PEM (easier to paste into env vars).
+if (!sslCa && typeof process.env.PGSSLROOTCERT_B64 === "string") {
+  try {
+    sslCa = normalizePem(
+      Buffer.from(process.env.PGSSLROOTCERT_B64.trim(), "base64").toString(
+        "utf8"
+      )
+    );
+  } catch {
+    // ignore
+  }
+}
 
 // Dev-only escape hatch for environments that intercept TLS (can surface as
 // "self-signed certificate in certificate chain" when connecting to managed PG).
