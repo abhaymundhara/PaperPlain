@@ -5,13 +5,29 @@ import axios from "axios";
 import xml2js from "xml2js";
 import multer from "multer";
 import { createClient } from "@supabase/supabase-js";
-import { getAuth } from "./auth.js";
-import { dbHealthCheck, pool } from "./db.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 dotenv.config();
+
+// Lazy imports to avoid blocking module load
+let cachedDb;
+let pool = null; // Exposed synchronously after first getDb() call
+async function getDb() {
+  if (cachedDb) return cachedDb;
+  cachedDb = await import("./db.js");
+  pool = cachedDb.pool; // Cache for sync access
+  return cachedDb;
+}
+
+let cachedAuth;
+async function getAuth() {
+  if (cachedAuth !== undefined) return cachedAuth;
+  const authModule = await import("./auth.js");
+  cachedAuth = await authModule.getAuth();
+  return cachedAuth;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -249,6 +265,7 @@ app.use(express.json());
 app.use(express.static("public"));
 
 async function ensurePapersTable() {
+  const { pool } = await getDb();
   if (!pool) return;
   await pgQuery(
     `
@@ -427,6 +444,7 @@ function withTimeout(promise, ms, label) {
 }
 
 async function pgQuery(queryText, params, label) {
+  const { pool } = await getDb();
   if (!pool) {
     const err = new Error("Database not configured");
     err.statusCode = 503;
@@ -854,9 +872,11 @@ app.get(
 
 app.get("/api/health/db", async (_req, res) => {
   try {
+    const { dbHealthCheck, pool } = await getDb();
     const ok = await withTimeout(dbHealthCheck(), 6000, "dbHealthCheck");
     res.json({ ok, databaseConfigured: Boolean(pool) });
   } catch (error) {
+    const { pool } = await getDb();
     res.status(503).json({
       ok: false,
       databaseConfigured: Boolean(pool),
