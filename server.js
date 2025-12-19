@@ -1330,12 +1330,12 @@ app.post("/api/qa/saved/:id", requireAuthSession(), async (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
-    message: "Paper Plain API is running [DEPLOYED]",
+    message: "Paper Plain API is running [BUILD-v2]",
     authEnabled: Boolean(process.env.DATABASE_URL),
     betterAuthUrl: process.env.BETTER_AUTH_URL || "NOT_SET",
     timestamp: new Date().toISOString(),
     nodeEnv: process.env.NODE_ENV,
-    version: "v1.0.1",
+    version: "v2.0.0",
   });
 });
 
