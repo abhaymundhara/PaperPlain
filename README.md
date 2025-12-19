@@ -95,3 +95,4 @@ Academic Paper De-Jargoner — transform complex research papers into plain Engl
 - `GET /api/health/db` (checks Postgres connectivity; returns 503 on failure)
 
 Note: Better Auth is mounted at `/api/better-auth/*` internally. The app exposes the simplified `/api/auth/*` endpoints for the vanilla JS frontend.
+# Deployment: Fri Dec 19 02:24:01 GMT 2025
