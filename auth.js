@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-import { pool as sharedPool } from "./db.js";
 
 dotenv.config();
 
@@ -18,6 +17,7 @@ export async function getAuth() {
 
     try {
       const { betterAuth } = await import("better-auth");
+      const { pool: sharedPool } = await import("./db.js");
       // better-auth will read BETTER_AUTH_SECRET from env automatically, but we
       // pass it explicitly so misconfiguration fails fast (and predictably).
       cachedAuth = betterAuth({
