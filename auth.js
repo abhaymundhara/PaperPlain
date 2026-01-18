@@ -30,6 +30,13 @@ export async function getAuth() {
         emailAndPassword: {
           enabled: true,
         },
+        socialProviders: {
+          google: {
+            clientId: process.env.GOOGLE_CLIENT_ID || "",
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+            enabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+          },
+        },
       });
     } catch (e) {
       console.error("[auth] better-auth init failed:", e);
