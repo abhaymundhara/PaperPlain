@@ -122,7 +122,7 @@ This project is optimized for deployment on Vercel:
 - Set up Supabase Storage for PDF uploads in production
 - Ensure `BETTER_AUTH_URL` points to your deployed URL
 
-For detailed deployment instructions, see the [Setup (Vercel-first)](#setup-vercel-first) section below.
+For detailed deployment instructions, see the [Setup (Vercel-first)](#-setup-vercel-first) section below.
 
 ## 🔐 Google OAuth Setup
 
@@ -167,6 +167,9 @@ To enable "Sign in with Google":
 - `POST /api/qa/saved/:id` - Ask a question about a saved paper
 
 ## 📋 Setup (Vercel-first)
+
+<details>
+<summary>Click to expand detailed Vercel deployment guide</summary>
 
 1. **Install dependencies:**
 
