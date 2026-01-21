@@ -1046,6 +1046,7 @@ ${excerpt}`;
 
 // Saved papers APIs (per-user)
 app.post("/api/papers/import", requireAuthSession(), async (req, res) => {
+  const { pool } = await getDb();
   if (!pool)
     return res.status(503).json({ message: "Database not configured" });
   try {
@@ -1096,6 +1097,7 @@ app.post("/api/papers/import", requireAuthSession(), async (req, res) => {
 });
 
 app.post("/api/papers/manual", requireAuthSession(), async (req, res) => {
+  const { pool } = await getDb();
   if (!pool)
     return res.status(503).json({ message: "Database not configured" });
   try {
@@ -1158,6 +1160,7 @@ app.post("/api/papers/manual", requireAuthSession(), async (req, res) => {
 });
 
 app.get("/api/papers", requireAuthSession(), async (req, res) => {
+  const { pool } = await getDb();
   if (!pool)
     return res.status(503).json({ message: "Database not configured" });
   const search = (req.query.q || "").toString().trim();
@@ -1189,6 +1192,7 @@ app.get("/api/papers", requireAuthSession(), async (req, res) => {
 });
 
 app.get("/api/papers/:id", requireAuthSession(), async (req, res) => {
+  const { pool } = await getDb();
   if (!pool)
     return res.status(503).json({ message: "Database not configured" });
   try {
@@ -1209,6 +1213,7 @@ app.get("/api/papers/:id", requireAuthSession(), async (req, res) => {
 });
 
 app.patch("/api/papers/:id", requireAuthSession(), async (req, res) => {
+  const { pool } = await getDb();
   if (!pool)
     return res.status(503).json({ message: "Database not configured" });
   const { notes, title, project, tags, qa_history } = req.body;
@@ -1276,6 +1281,7 @@ app.patch("/api/papers/:id", requireAuthSession(), async (req, res) => {
 });
 
 app.delete("/api/papers/:id", requireAuthSession(), async (req, res) => {
+  const { pool } = await getDb();
   if (!pool)
     return res.status(503).json({ message: "Database not configured" });
   try {
@@ -1307,6 +1313,7 @@ app.post("/api/qa/live", requireAuthSession(), async (req, res) => {
 });
 
 app.post("/api/qa/saved/:id", requireAuthSession(), async (req, res) => {
+  const { pool } = await getDb();
   if (!pool)
     return res.status(503).json({ message: "Database not configured" });
   try {

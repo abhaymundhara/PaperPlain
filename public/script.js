@@ -7,6 +7,7 @@ let currentTags = [];
 let currentQaHistory = [];
 const THEME_STORAGE_KEY = "paperplain-theme";
 const WARM_STORAGE_KEY = "paperplain-warm";
+const DRAFT_STORAGE_KEY = "paperplain:draft";
 
 // --- API Helper ---
 async function apiRequest(path, { method = "GET", body } = {}) {
@@ -75,6 +76,136 @@ function setStoredValue(key, value) {
   } catch {
     // ignore storage failures
   }
+}
+
+function persistDraft() {
+  if (!currentPaper || currentPaperId) return;
+  const projectEl = document.getElementById("paperProject");
+  const notesEl = document.getElementById("userNotes");
+  const draft = {
+    paper: {
+      arxivId: currentPaper.arxivId || "",
+      title: currentPaper.title || "",
+      authors: currentPaper.authors || "",
+      abstract: currentPaper.abstract || "",
+      pdfUrl: currentPaper.pdfUrl || "",
+      summary: currentPaper.summary || "",
+    },
+    project: projectEl?.value?.trim() || currentPaper.project || "",
+    tags: Array.isArray(currentTags) ? currentTags : [],
+    notes: notesEl?.value || "",
+    qaHistory: Array.isArray(currentQaHistory) ? currentQaHistory : [],
+    savedAt: Date.now(),
+  };
+  setStoredValue(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function renderSummary(summaryText) {
+  const summary = (summaryText || "").toString();
+  const keyTermsMatch = summary.match(
+    /(\*\*\s*Key\s*Terms\s*:\s*\*\*|Key\s*Terms\s*:)/i
+  );
+  const keyTermsIndex = keyTermsMatch?.index ?? -1;
+
+  const mainSummary = (
+    keyTermsIndex >= 0 ? summary.slice(0, keyTermsIndex) : summary
+  ).trim();
+  let keyTerms = keyTermsIndex >= 0 ? summary.slice(keyTermsIndex).trim() : "";
+  if (keyTerms) {
+    keyTerms = keyTerms.replace(
+      /^(\*\*\s*)?Key\s*Terms\s*:\s*(\*\*)?/i,
+      "**Key Terms:**"
+    );
+  }
+
+  document.getElementById("summaryContent").innerHTML =
+    formatMarkdown(mainSummary);
+
+  const takeawaysEl = document.getElementById("takeawaysContent");
+  if (keyTerms) {
+    takeawaysEl.innerHTML = formatMarkdown(keyTerms);
+    takeawaysEl.parentElement.style.display = "block";
+  } else {
+    takeawaysEl.parentElement.style.display = "none";
+  }
+}
+
+function renderDraft(draft) {
+  document.getElementById("emptyState").style.display = "none";
+  document.getElementById("results").style.display = "block";
+  document.querySelector(".right-panel").style.display = "flex";
+
+  document.getElementById("paperTitle").textContent =
+    currentPaper.title || "Untitled";
+  document.getElementById("paperAuthors").textContent =
+    currentPaper.authors || "";
+  document.getElementById("paperDate").textContent = "";
+
+  const pdfLink = document.getElementById("paperPdfLink");
+  if (currentPaper.pdfUrl) {
+    pdfLink.href = currentPaper.pdfUrl;
+    pdfLink.style.display = "inline-flex";
+  } else {
+    pdfLink.href = "#";
+    pdfLink.style.display = "none";
+  }
+
+  const citeBtn = document.getElementById("paperCiteBtn");
+  if (citeBtn)
+    citeBtn.style.display = currentPaper.arxivId ? "inline-flex" : "none";
+
+  const exportBtn = document.getElementById("paperExportBtn");
+  if (exportBtn) exportBtn.style.display = "inline-flex";
+
+  renderSummary(currentPaper.summary);
+
+  document.getElementById("paperProject").value = draft.project || "";
+  document.getElementById("userNotes").value = draft.notes || "";
+  renderTags();
+  renderQaHistory(currentQaHistory);
+  updateSaveButtonState();
+
+  const status = document.getElementById("saveStatus");
+  if (status) status.textContent = "Saved (Local)";
+}
+
+function restoreDraft() {
+  if (currentPaper || currentPaperId) return;
+  const raw = getStoredValue(DRAFT_STORAGE_KEY);
+  if (!raw) return;
+  let draft;
+  try {
+    draft = JSON.parse(raw);
+  } catch {
+    return;
+  }
+
+  const paper = draft?.paper || {};
+  if (!paper.summary && !paper.title) return;
+
+  currentPaper = {
+    arxivId: paper.arxivId || "",
+    title: paper.title || "",
+    authors: paper.authors || "",
+    abstract: paper.abstract || "",
+    pdfUrl: paper.pdfUrl || "",
+    summary: paper.summary || "",
+    project: draft.project || "",
+    tags: Array.isArray(draft.tags) ? draft.tags : [],
+  };
+  currentPaperId = null;
+  currentTags = Array.isArray(draft.tags) ? draft.tags : [];
+  currentQaHistory = Array.isArray(draft.qaHistory) ? draft.qaHistory : [];
+
+  renderDraft(draft);
 }
 
 function updateThemeToggle(theme) {
@@ -466,35 +597,8 @@ function displayResults(data) {
   const exportBtn = document.getElementById("paperExportBtn");
   if (exportBtn) exportBtn.style.display = "inline-flex";
 
-  // Parse Summary
   const summaryText = (data.simplifiedSummary || "").toString();
-  const keyTermsMatch = summaryText.match(
-    /(\*\*\s*Key\s*Terms\s*:\s*\*\*|Key\s*Terms\s*:)/i
-  );
-  const keyTermsIndex = keyTermsMatch?.index ?? -1;
-
-  const mainSummary = (
-    keyTermsIndex >= 0 ? summaryText.slice(0, keyTermsIndex) : summaryText
-  ).trim();
-  let keyTerms =
-    keyTermsIndex >= 0 ? summaryText.slice(keyTermsIndex).trim() : "";
-  if (keyTerms) {
-    keyTerms = keyTerms.replace(
-      /^(\*\*\s*)?Key\s*Terms\s*:\s*(\*\*)?/i,
-      "**Key Terms:**"
-    );
-  }
-
-  document.getElementById("summaryContent").innerHTML =
-    formatMarkdown(mainSummary);
-
-  const takeawaysEl = document.getElementById("takeawaysContent");
-  if (keyTerms) {
-    takeawaysEl.innerHTML = formatMarkdown(keyTerms);
-    takeawaysEl.parentElement.style.display = "block";
-  } else {
-    takeawaysEl.parentElement.style.display = "none";
-  }
+  renderSummary(summaryText);
 
   // Reset State
   currentPaper = {
@@ -516,6 +620,7 @@ function displayResults(data) {
 
   // Update Save Button
   updateSaveButtonState();
+  persistDraft();
 }
 
 function safeFilename(name) {
@@ -697,7 +802,11 @@ function handleTagInput(event) {
       currentTags.push(val);
       renderTags();
       event.target.value = "";
-      if (currentPaperId) savePaperUpdates();
+      if (currentPaperId) {
+        savePaperUpdates();
+      } else {
+        persistDraft();
+      }
     }
   }
 }
@@ -705,7 +814,11 @@ function handleTagInput(event) {
 function removeTag(tag) {
   currentTags = currentTags.filter((t) => t !== tag);
   renderTags();
-  if (currentPaperId) savePaperUpdates();
+  if (currentPaperId) {
+    savePaperUpdates();
+  } else {
+    persistDraft();
+  }
 }
 
 function renderTags() {
@@ -792,7 +905,11 @@ async function persistQaHistory() {
 function updatePaperProject() {
   if (currentPaper) {
     currentPaper.project = document.getElementById("paperProject").value.trim();
-    if (currentPaperId) savePaperUpdates();
+    if (currentPaperId) {
+      savePaperUpdates();
+    } else {
+      persistDraft();
+    }
   }
 }
 
@@ -818,6 +935,7 @@ async function savePaper() {
       currentPaper.tags = response.paper.tags || currentTags;
       showToast("Paper saved to library", "success");
       updateSaveButtonState();
+      clearDraft();
       await loadSavedPapers();
     }
   } catch (error) {
@@ -1073,6 +1191,7 @@ function autoSaveNotes() {
     } else {
       document.getElementById("saveStatus").textContent = "Saved (Local)";
     }
+    persistDraft();
   }, 1000);
 }
 
@@ -1158,6 +1277,8 @@ async function sendQa() {
         text: "Error: " + (error.message || "Failed to get answer"),
       };
     await persistQaHistory();
+  } finally {
+    persistDraft();
   }
 }
 
@@ -1216,7 +1337,10 @@ function showToast(message, type = "info") {
 // --- Init ---
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
-  refreshSession();
+  (async () => {
+    await refreshSession();
+    restoreDraft();
+  })();
 });
 
 document.addEventListener("click", (event) => {
