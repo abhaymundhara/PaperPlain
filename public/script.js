@@ -152,8 +152,25 @@ async function submitAuth(event) {
   }
 }
 
-function continueWithGoogle() {
-  window.location.href = "/api/better-auth/google";
+async function continueWithGoogle() {
+  hideAuthError();
+  try {
+    const callbackURL = `${window.location.pathname}${window.location.search}`;
+    const response = await apiRequest(SOCIAL_SIGN_IN_PATH, {
+      method: "POST",
+      body: buildSocialSignInPayload({
+        provider: "google",
+        callbackURL: callbackURL || "/",
+      }),
+    });
+    const redirectUrl = getSocialRedirectUrl(response);
+    if (!redirectUrl) {
+      throw new Error("Google sign-in could not start. Please try again.");
+    }
+    window.location.href = redirectUrl;
+  } catch (error) {
+    showAuthError(error.message || "Google sign-in failed");
+  }
 }
 
 async function signOut() {
