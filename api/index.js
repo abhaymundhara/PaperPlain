@@ -1,7 +1,6 @@
-import serverlessHttp from "serverless-http";
-
 let cachedHandler;
 let cachedInitError;
+let cachedInitPromise;
 
 function sendJson(res, statusCode, body) {
   res.statusCode = statusCode;
@@ -22,21 +21,31 @@ function withTimeout(promise, ms, label) {
 }
 
 async function getExpressHandler() {
+  if (globalThis.__PAPERPLAIN_TEST_APP__) {
+    return globalThis.__PAPERPLAIN_TEST_APP__;
+  }
   if (cachedHandler) return cachedHandler;
   if (cachedInitError) throw cachedInitError;
+  if (cachedInitPromise) return cachedInitPromise;
 
-  try {
-    const mod = await withTimeout(
-      import("../server.js"),
-      8000,
-      "Import server.js"
-    );
-    cachedHandler = serverlessHttp(mod.app);
-    return cachedHandler;
-  } catch (e) {
-    cachedInitError = e;
-    throw e;
-  }
+  cachedInitPromise = (async () => {
+    try {
+      const mod = await withTimeout(
+        import("../server.js"),
+        8000,
+        "Import server.js"
+      );
+      cachedHandler = mod.app;
+      return cachedHandler;
+    } catch (e) {
+      cachedInitError = e;
+      throw e;
+    } finally {
+      cachedInitPromise = null;
+    }
+  })();
+
+  return cachedInitPromise;
 }
 
 export default async function handler(req, res) {
