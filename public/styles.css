@@ -39,6 +39,48 @@
   --radius-xl: 24px;
 }
 
+html[data-theme="dark"] {
+  --bg-app: #0f1214;
+  --bg-subtle: #151a1d;
+  --bg-panel: #1b2124;
+  --primary-50: #1e2a2d;
+  --primary-100: #263436;
+  --primary-500: #7fa1a7;
+  --primary-600: #6b8b91;
+  --primary-700: #587277;
+  --text-primary: #f0f4f8;
+  --text-secondary: #c9d0d6;
+  --text-tertiary: #9aa3aa;
+  --border-subtle: #262c30;
+  --border-default: #2f363b;
+}
+
+html[data-theme="light"][data-warm="on"] {
+  --bg-app: #fbf6ef;
+  --bg-subtle: #f4eadc;
+  --bg-panel: #fff9f1;
+  --primary-50: #f7eee3;
+  --primary-100: #eddcc8;
+  --primary-500: #b89274;
+  --primary-600: #a57f62;
+  --primary-700: #8f6b50;
+  --border-subtle: #eadfcd;
+  --border-default: #d8cabb;
+}
+
+html[data-theme="dark"][data-warm="on"] {
+  --bg-app: #161311;
+  --bg-subtle: #1f1a17;
+  --bg-panel: #241f1b;
+  --primary-50: #2a211b;
+  --primary-100: #3a2c22;
+  --primary-500: #b08a6c;
+  --primary-600: #9b775b;
+  --primary-700: #836149;
+  --border-subtle: #2c241f;
+  --border-default: #3a3029;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -91,6 +133,12 @@ body {
   gap: 10px;
 }
 
+.theme-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .nav-brand {
   display: flex;
   align-items: center;
@@ -136,6 +184,48 @@ body {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.08em;
+}
+
+.theme-toggle {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--slate-100);
+  color: var(--text-primary);
+}
+
+.theme-toggle.is-active {
+  border-color: var(--primary-500);
+  color: var(--primary-700);
+  background: var(--primary-50);
+}
+
+.theme-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.theme-icon-moon {
+  display: none;
+}
+
+html[data-theme="dark"] .theme-icon-sun {
+  display: none;
+}
+
+html[data-theme="dark"] .theme-icon-moon {
+  display: inline;
 }
 
 .user-menu-dropdown {

@@ -5,6 +5,8 @@ let currentPaperId = null;
 let projectFilter = "";
 let currentTags = [];
 let currentQaHistory = [];
+const THEME_STORAGE_KEY = "paperplain-theme";
+const WARM_STORAGE_KEY = "paperplain-warm";
 
 // --- API Helper ---
 async function apiRequest(path, { method = "GET", body } = {}) {
@@ -51,10 +53,83 @@ async function apiRequest(path, { method = "GET", body } = {}) {
       typeof data === "string"
         ? data
         : data?.message || data?.error || "Request failed";
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
 
   return data;
+}
+
+function getStoredValue(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function setStoredValue(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function updateThemeToggle(theme) {
+  const btn = document.getElementById("themeToggleBtn");
+  if (!btn) return;
+  const isDark = theme === "dark";
+  const label = isDark ? "Switch to light mode" : "Switch to dark mode";
+  btn.setAttribute("aria-pressed", isDark ? "true" : "false");
+  btn.setAttribute("aria-label", label);
+  btn.setAttribute("title", label);
+  btn.classList.toggle("is-active", isDark);
+}
+
+function updateWarmToggle(isWarm) {
+  const btn = document.getElementById("warmToggleBtn");
+  if (!btn) return;
+  const label = isWarm ? "Warm mode on" : "Warm mode off";
+  btn.setAttribute("aria-pressed", isWarm ? "true" : "false");
+  btn.setAttribute("aria-label", label);
+  btn.setAttribute("title", label);
+  btn.classList.toggle("is-active", isWarm);
+}
+
+function applyTheme(theme) {
+  const nextTheme = theme === "dark" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", nextTheme);
+  updateThemeToggle(nextTheme);
+}
+
+function applyWarm(isWarm) {
+  document.documentElement.setAttribute("data-warm", isWarm ? "on" : "off");
+  updateWarmToggle(isWarm);
+}
+
+function initTheme() {
+  const storedTheme = getStoredValue(THEME_STORAGE_KEY);
+  const storedWarm = getStoredValue(WARM_STORAGE_KEY);
+  const theme = storedTheme === "dark" ? "dark" : "light";
+  const isWarm = storedWarm === "on";
+  applyTheme(theme);
+  applyWarm(isWarm);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute("data-theme");
+  const next = current === "dark" ? "light" : "dark";
+  setStoredValue(THEME_STORAGE_KEY, next);
+  applyTheme(next);
+}
+
+function toggleWarm() {
+  const current = document.documentElement.getAttribute("data-warm");
+  const next = current !== "on";
+  setStoredValue(WARM_STORAGE_KEY, next ? "on" : "off");
+  applyWarm(next);
 }
 
 // --- Auth Functions ---
@@ -67,6 +142,23 @@ function toggleAuthPanel() {
   if (!isOpen) {
     document.getElementById("googleSignInBtn")?.focus();
   }
+}
+
+function openAuthPanel() {
+  const overlay = document.getElementById("authOverlay");
+  if (!overlay || overlay.style.display !== "none") return;
+  overlay.style.display = "flex";
+  hideAuthError();
+  document.getElementById("googleSignInBtn")?.focus();
+}
+
+function handleAuthRequired(error) {
+  if (error?.status === 401) {
+    showToast("Sign in to save papers", "error");
+    openAuthPanel();
+    return true;
+  }
+  return false;
 }
 
 function getInitials(name, email) {
@@ -729,6 +821,7 @@ async function savePaper() {
       await loadSavedPapers();
     }
   } catch (error) {
+    if (handleAuthRequired(error)) return;
     showToast(error?.message || "Failed to save paper", "error");
   }
 }
@@ -1122,6 +1215,7 @@ function showToast(message, type = "info") {
 
 // --- Init ---
 document.addEventListener("DOMContentLoaded", () => {
+  initTheme();
   refreshSession();
 });
 
