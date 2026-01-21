@@ -40,9 +40,9 @@
 }
 
 html[data-theme="dark"] {
-  --bg-app: #0f1214;
-  --bg-subtle: #151a1d;
-  --bg-panel: #1b2124;
+  --bg-app: #0b0b0b;
+  --bg-subtle: #111111;
+  --bg-panel: #141414;
   --primary-50: #1e2a2d;
   --primary-100: #263436;
   --primary-500: #7fa1a7;
@@ -69,9 +69,9 @@ html[data-theme="light"][data-warm="on"] {
 }
 
 html[data-theme="dark"][data-warm="on"] {
-  --bg-app: #161311;
-  --bg-subtle: #1f1a17;
-  --bg-panel: #241f1b;
+  --bg-app: #2a2a2a;
+  --bg-subtle: #2f2f2f;
+  --bg-panel: #333333;
   --primary-50: #2a211b;
   --primary-100: #3a2c22;
   --primary-500: #b08a6c;
