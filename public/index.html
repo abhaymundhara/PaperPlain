@@ -82,43 +82,10 @@
             </button>
           </div>
 
-          <div class="auth-tabs">
-            <button
-              id="tabSignIn"
-              class="tab-btn active"
-              onclick="setAuthMode('signin')"
-            >
-              Sign in
-            </button>
-            <button
-              id="tabSignUp"
-              class="tab-btn"
-              onclick="setAuthMode('signup')"
-            >
-              Create account
-            </button>
-          </div>
-
-          <form class="auth-form" onsubmit="submitAuth(event)">
-            <div class="form-group">
-              <label for="authEmail">Email address</label>
-              <input id="authEmail" type="email" class="form-input" required />
-            </div>
-            <div class="form-group">
-              <label for="authPassword">Password</label>
-              <input
-                id="authPassword"
-                type="password"
-                class="form-input"
-                required
-              />
-            </div>
-            <div id="signUpFields" style="display: none">
-              <div class="form-group">
-                <label for="authName">Full Name</label>
-                <input id="authName" type="text" class="form-input" />
-              </div>
-            </div>
+          <div class="auth-form">
+            <p class="auth-helper">
+              Sign in with Google to access your saved papers and projects.
+            </p>
 
             <div
               id="authError"
@@ -128,19 +95,7 @@
 
             <div class="form-actions">
               <button
-                id="authSubmitBtn"
-                type="submit"
-                class="btn btn-primary btn-block"
-              >
-                <span id="authSubmitText">Sign in</span>
-                <span
-                  id="authSubmitLoader"
-                  class="loader"
-                  style="display: none"
-                ></span>
-              </button>
-              <div class="divider"><span>or</span></div>
-              <button
+                id="googleSignInBtn"
                 type="button"
                 class="btn btn-outline btn-block"
                 onclick="continueWithGoogle()"
@@ -171,7 +126,7 @@
                 Continue with Google
               </button>
             </div>
-          </form>
+          </div>
         </div>
       </div>
 

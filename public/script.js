@@ -1,5 +1,4 @@
 let currentSummary = "";
-let authMode = "signin";
 let currentPaper = null;
 let savedPapers = [];
 let currentPaperId = null;
@@ -59,32 +58,6 @@ async function apiRequest(path, { method = "GET", body } = {}) {
 }
 
 // --- Auth Functions ---
-function setAuthMode(mode) {
-  authMode = mode;
-  const tabSignIn = document.getElementById("tabSignIn");
-  const tabSignUp = document.getElementById("tabSignUp");
-  const signUpFields = document.getElementById("signUpFields");
-  const authSubmitText = document.getElementById("authSubmitText");
-
-  if (mode === "signup") {
-    tabSignIn.classList.remove("active");
-    tabSignUp.classList.add("active");
-    signUpFields.style.display = "block";
-    authSubmitText.textContent = "Create account";
-    document
-      .getElementById("authPassword")
-      .setAttribute("autocomplete", "new-password");
-  } else {
-    tabSignUp.classList.remove("active");
-    tabSignIn.classList.add("active");
-    signUpFields.style.display = "none";
-    authSubmitText.textContent = "Sign in";
-    document
-      .getElementById("authPassword")
-      .setAttribute("autocomplete", "current-password");
-  }
-}
-
 function toggleAuthPanel() {
   const overlay = document.getElementById("authOverlay");
   const isOpen = overlay.style.display !== "none";
@@ -92,64 +65,20 @@ function toggleAuthPanel() {
   hideAuthError();
 
   if (!isOpen) {
-    document.getElementById("authEmail").focus();
+    document.getElementById("googleSignInBtn")?.focus();
   }
 }
 
 function showAuthError(message) {
   const el = document.getElementById("authError");
+  if (!el) return;
   el.textContent = message;
   el.style.display = "block";
 }
 
 function hideAuthError() {
-  document.getElementById("authError").style.display = "none";
-}
-
-async function submitAuth(event) {
-  event.preventDefault();
-  hideAuthError();
-
-  const btn = document.getElementById("authSubmitBtn");
-  const btnText = document.getElementById("authSubmitText");
-  const btnLoader = document.getElementById("authSubmitLoader");
-
-  btn.disabled = true;
-  btnText.style.display = "none";
-  btnLoader.style.display = "inline-block";
-
-  try {
-    const email = document.getElementById("authEmail").value.trim();
-    const password = document.getElementById("authPassword").value;
-
-    if (!email || !password) throw new Error("Email and password are required");
-
-    if (authMode === "signup") {
-      const name = document.getElementById("authName").value.trim();
-      if (!name) throw new Error("Name is required");
-
-      await apiRequest("/api/auth/signup", {
-        method: "POST",
-        body: { name, email, password },
-      });
-    } else {
-      await apiRequest("/api/auth/signin", {
-        method: "POST",
-        body: { email, password },
-      });
-    }
-
-    await refreshSession();
-    document.getElementById("authPassword").value = "";
-    toggleAuthPanel();
-    showToast("Successfully signed in", "success");
-  } catch (error) {
-    showAuthError(error.message || "Authentication failed");
-  } finally {
-    btn.disabled = false;
-    btnText.style.display = "inline";
-    btnLoader.style.display = "none";
-  }
+  const el = document.getElementById("authError");
+  if (el) el.style.display = "none";
 }
 
 async function continueWithGoogle() {
