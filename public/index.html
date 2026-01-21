@@ -40,25 +40,42 @@
 
         <div class="nav-actions">
           <button
-            id="toggleAuthBtn"
+            id="signInBtn"
             class="btn btn-ghost btn-sm"
             onclick="toggleAuthPanel()"
           >
-            <span
-              id="avatarBadge"
-              class="avatar-badge"
-              style="display: none"
-            ></span>
-            <span id="avatarLabel">Sign in</span>
+            Sign in
           </button>
-          <button
-            id="signOutBtn"
-            class="btn btn-ghost btn-sm"
-            style="display: none"
-            onclick="signOut()"
-          >
-            Sign out
-          </button>
+          <div id="userMenu" class="user-menu" style="display: none">
+            <button
+              id="userMenuButton"
+              class="avatar-button"
+              type="button"
+              onclick="toggleUserMenu()"
+              aria-haspopup="true"
+              aria-expanded="false"
+            >
+              <span id="userAvatarInitials" class="avatar-initials">U</span>
+            </button>
+            <div id="userMenuDropdown" class="user-menu-dropdown" style="display: none">
+              <button
+                id="userMenuSettings"
+                type="button"
+                class="menu-item"
+                onclick="openSettingsModal()"
+              >
+                Settings
+              </button>
+              <button
+                id="userMenuSignOut"
+                type="button"
+                class="menu-item menu-item-danger"
+                onclick="handleSignOut()"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -126,6 +143,30 @@
                 Continue with Google
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="settingsOverlay" class="modal-overlay" style="display: none">
+        <div class="modal-content settings-modal">
+          <div class="modal-header">
+            <h3>Settings</h3>
+            <button class="btn-icon" onclick="closeSettingsModal()">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="settings-body">
+            <p>Account settings are coming soon.</p>
           </div>
         </div>
       </div>

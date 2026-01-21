@@ -69,6 +69,52 @@ function toggleAuthPanel() {
   }
 }
 
+function getInitials(name, email) {
+  const base = (name || email || "").trim();
+  if (!base) return "U";
+  const atSplit = base.split("@")[0];
+  const parts = atSplit.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) {
+    const cleaned = parts[0].replace(/[^a-zA-Z0-9]/g, "");
+    return cleaned.slice(0, 2).toUpperCase() || "U";
+  }
+  const first = parts[0][0] || "";
+  const last = parts[parts.length - 1][0] || "";
+  return `${first}${last}`.toUpperCase() || "U";
+}
+
+function setUserMenuOpen(open) {
+  const menuButton = document.getElementById("userMenuButton");
+  const menuDropdown = document.getElementById("userMenuDropdown");
+  if (!menuButton || !menuDropdown) return;
+  menuDropdown.style.display = open ? "flex" : "none";
+  menuButton.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function toggleUserMenu() {
+  const menuDropdown = document.getElementById("userMenuDropdown");
+  if (!menuDropdown) return;
+  const isOpen = menuDropdown.style.display !== "none";
+  setUserMenuOpen(!isOpen);
+}
+
+function closeUserMenu() {
+  setUserMenuOpen(false);
+}
+
+function openSettingsModal() {
+  closeUserMenu();
+  const overlay = document.getElementById("settingsOverlay");
+  if (!overlay) return;
+  overlay.style.display = "flex";
+}
+
+function closeSettingsModal() {
+  const overlay = document.getElementById("settingsOverlay");
+  if (!overlay) return;
+  overlay.style.display = "none";
+}
+
 function showAuthError(message) {
   const el = document.getElementById("authError");
   if (!el) return;
@@ -102,6 +148,11 @@ async function continueWithGoogle() {
   }
 }
 
+async function handleSignOut() {
+  closeUserMenu();
+  await signOut();
+}
+
 async function signOut() {
   try {
     await apiRequest("/api/auth/signout", { method: "POST" });
@@ -113,21 +164,24 @@ async function signOut() {
 }
 
 async function refreshSession() {
-  const toggleBtn = document.getElementById("toggleAuthBtn");
-  const avatarBadge = document.getElementById("avatarBadge");
-  const avatarLabel = document.getElementById("avatarLabel");
-  const signOutBtn = document.getElementById("signOutBtn");
+  const signInBtn = document.getElementById("signInBtn");
+  const userMenu = document.getElementById("userMenu");
+  const userMenuButton = document.getElementById("userMenuButton");
+  const userAvatarInitials = document.getElementById("userAvatarInitials");
 
   try {
     const session = await apiRequest("/api/auth/me");
     if (session?.user?.email) {
-      const initial =
-        (session.user.name || session.user.email || "").trim().charAt(0) || "U";
-      avatarBadge.textContent = initial.toUpperCase();
-      avatarBadge.style.display = "flex";
-      avatarLabel.textContent = session.user.name || "Account";
-      toggleBtn.classList.remove("btn-ghost"); // Optional styling change
-      signOutBtn.style.display = "inline-flex";
+      const initials = getInitials(session.user.name, session.user.email);
+      if (userAvatarInitials) {
+        userAvatarInitials.textContent = initials;
+      }
+      if (userMenuButton) {
+        const label = session.user.name || session.user.email || "Account";
+        userMenuButton.setAttribute("aria-label", `${label} menu`);
+      }
+      if (userMenu) userMenu.style.display = "flex";
+      if (signInBtn) signInBtn.style.display = "none";
 
       await loadSavedPapers();
       return;
@@ -136,9 +190,9 @@ async function refreshSession() {
     // ignore
   }
 
-  avatarBadge.style.display = "none";
-  avatarLabel.textContent = "Sign in";
-  signOutBtn.style.display = "none";
+  closeUserMenu();
+  if (userMenu) userMenu.style.display = "none";
+  if (signInBtn) signInBtn.style.display = "inline-flex";
   savedPapers = [];
   renderSavedList();
   currentPaperId = null;
@@ -1069,4 +1123,18 @@ function showToast(message, type = "info") {
 // --- Init ---
 document.addEventListener("DOMContentLoaded", () => {
   refreshSession();
+});
+
+document.addEventListener("click", (event) => {
+  const userMenu = document.getElementById("userMenu");
+  const menuDropdown = document.getElementById("userMenuDropdown");
+  if (!userMenu || !menuDropdown) return;
+  if (menuDropdown.style.display === "none") return;
+  if (!userMenu.contains(event.target)) closeUserMenu();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  closeUserMenu();
+  closeSettingsModal();
 });
