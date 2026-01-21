@@ -149,14 +149,7 @@ function renderDraft(draft) {
     currentPaper.authors || "";
   document.getElementById("paperDate").textContent = "";
 
-  const pdfLink = document.getElementById("paperPdfLink");
-  if (currentPaper.pdfUrl) {
-    pdfLink.href = currentPaper.pdfUrl;
-    pdfLink.style.display = "inline-flex";
-  } else {
-    pdfLink.href = "#";
-    pdfLink.style.display = "none";
-  }
+  updatePdfLink(currentPaper.pdfUrl);
 
   const citeBtn = document.getElementById("paperCiteBtn");
   if (citeBtn)
@@ -564,6 +557,55 @@ async function copyCitation() {
   }
 }
 
+async function downloadPdf() {
+  if (!currentPaper?.pdfUrl) {
+    showToast("No PDF available", "error");
+    return;
+  }
+
+  const btn = document.getElementById("paperPdfLink");
+  const original = btn?.innerHTML;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Downloading…";
+  }
+
+  const arxivId = currentPaper.arxivId;
+  const downloadUrl = arxivId
+    ? `/api/arxiv/${encodeURIComponent(arxivId)}/pdf`
+    : currentPaper.pdfUrl;
+  const filename = `${safeFilename(arxivId || currentPaper.title || "paper")}.pdf`;
+
+  try {
+    const response = await fetch(downloadUrl);
+    if (!response.ok) throw new Error("Failed to download PDF");
+    const blob = await response.blob();
+    downloadBlob(blob, filename);
+    showToast("PDF downloaded", "success");
+  } catch (error) {
+    if (!arxivId && currentPaper.pdfUrl) {
+      const link = document.createElement("a");
+      link.href = currentPaper.pdfUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showToast("Downloading PDF", "success");
+    } else {
+      showToast(error?.message || "Failed to download PDF", "error");
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      if (original) {
+        btn.innerHTML = original;
+      } else {
+        btn.textContent = "PDF";
+      }
+    }
+  }
+}
+
 function displayResults(data) {
   document.getElementById("emptyState").style.display = "none";
   document.getElementById("results").style.display = "block";
@@ -582,14 +624,7 @@ function displayResults(data) {
         })
       : "";
 
-  const pdfLink = document.getElementById("paperPdfLink");
-  if (data.pdfUrl) {
-    pdfLink.href = data.pdfUrl;
-    pdfLink.style.display = "inline-flex";
-  } else {
-    pdfLink.href = "#";
-    pdfLink.style.display = "none";
-  }
+  updatePdfLink(data.pdfUrl);
 
   const citeBtn = document.getElementById("paperCiteBtn");
   if (citeBtn) citeBtn.style.display = data.arxivId ? "inline-flex" : "none";
@@ -634,25 +669,48 @@ function safeFilename(name) {
     .slice(0, 80);
 }
 
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function getExportState() {
+  if (!currentPaper) return null;
+  return {
+    title: currentPaper.title || "Untitled",
+    authors: currentPaper.authors || "",
+    arxivId: currentPaper.arxivId || "",
+    pdfUrl: currentPaper.pdfUrl || "",
+    project: document.getElementById("paperProject")?.value?.trim() || "",
+    tags: Array.isArray(currentTags) ? currentTags : [],
+    notes: document.getElementById("userNotes")?.value || "",
+    summary: currentPaper.summary || "",
+    qa: Array.isArray(currentQaHistory) ? currentQaHistory : [],
+  };
+}
+
 async function exportMarkdown() {
-  if (!currentPaper) {
+  closeExportMenu();
+  const state = getExportState();
+  if (!state) {
     showToast("No paper to export", "error");
     return;
   }
 
-  const title = currentPaper.title || "Untitled";
-  const authors = currentPaper.authors || "";
-  const project = document.getElementById("paperProject")?.value?.trim() || "";
-  const tags = Array.isArray(currentTags) ? currentTags : [];
-  const notes = document.getElementById("userNotes")?.value || "";
-  const summary = currentPaper.summary || "";
-  const pdfUrl = currentPaper.pdfUrl || "";
+  const { title, authors, project, tags, notes, summary, pdfUrl, arxivId, qa } =
+    state;
 
   let bibtex = "";
-  if (currentPaper.arxivId) {
+  if (arxivId) {
     try {
       const resp = await apiRequest(
-        `/api/arxiv/${encodeURIComponent(currentPaper.arxivId)}/bibtex`
+        `/api/arxiv/${encodeURIComponent(arxivId)}/bibtex`
       );
       bibtex = (resp?.bibtex || "").toString().trim();
     } catch {
@@ -660,12 +718,10 @@ async function exportMarkdown() {
     }
   }
 
-  const qa = Array.isArray(currentQaHistory) ? currentQaHistory : [];
-
   const lines = [];
   lines.push(`# ${title}`);
   if (authors) lines.push(`**Authors:** ${authors}`);
-  if (currentPaper.arxivId) lines.push(`**arXiv:** ${currentPaper.arxivId}`);
+  if (arxivId) lines.push(`**arXiv:** ${arxivId}`);
   if (pdfUrl) lines.push(`**PDF:** ${pdfUrl}`);
   if (project) lines.push(`**Project:** ${project}`);
   if (tags.length) lines.push(`**Tags:** ${tags.join(", ")}`);
@@ -704,18 +760,106 @@ async function exportMarkdown() {
 
   const md = lines.join("\n");
   const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  const base = safeFilename(currentPaper.arxivId || title);
-  a.href = url;
-  a.download = `${base || "paper"}.md`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  const base = safeFilename(arxivId || title);
+  downloadBlob(blob, `${base || "paper"}.md`);
 
   showToast("Exported Markdown", "success");
+}
+
+function exportText() {
+  closeExportMenu();
+  const state = getExportState();
+  if (!state) {
+    showToast("No paper to export", "error");
+    return;
+  }
+
+  const { title, authors, arxivId, pdfUrl, project, tags, summary, notes, qa } =
+    state;
+
+  const lines = [];
+  lines.push(title);
+  if (authors) lines.push(`Authors: ${authors}`);
+  if (arxivId) lines.push(`arXiv: ${arxivId}`);
+  if (pdfUrl) lines.push(`PDF: ${pdfUrl}`);
+  if (project) lines.push(`Project: ${project}`);
+  if (tags.length) lines.push(`Tags: ${tags.join(", ")}`);
+  lines.push("");
+  lines.push("Summary");
+  lines.push(summary || "(none)");
+  lines.push("");
+  lines.push("Notes");
+  lines.push(notes?.trim() ? notes.trim() : "(none)");
+  lines.push("");
+  lines.push("Q&A");
+  if (!qa.length) {
+    lines.push("(none)");
+  } else {
+    for (const m of qa) {
+      const role = m.role === "user" ? "You" : "AI";
+      lines.push(
+        `${role}: ${String(m.text || "")
+          .replace(/\n/g, " ")
+          .trim()}`
+      );
+    }
+  }
+
+  const text = lines.join("\n");
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const base = safeFilename(arxivId || title);
+  downloadBlob(blob, `${base || "paper"}.txt`);
+  showToast("Exported text", "success");
+}
+
+function exportJson() {
+  closeExportMenu();
+  const state = getExportState();
+  if (!state) {
+    showToast("No paper to export", "error");
+    return;
+  }
+
+  const payload = {
+    title: state.title,
+    authors: state.authors,
+    arxivId: state.arxivId,
+    pdfUrl: state.pdfUrl,
+    project: state.project,
+    tags: state.tags,
+    summary: state.summary,
+    notes: state.notes,
+    qa: state.qa,
+  };
+
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+  const base = safeFilename(state.arxivId || state.title);
+  downloadBlob(blob, `${base || "paper"}.json`);
+  showToast("Exported JSON", "success");
+}
+
+async function exportBibtex() {
+  closeExportMenu();
+  const arxivId = currentPaper?.arxivId;
+  if (!arxivId) {
+    showToast("No arXiv ID available", "error");
+    return;
+  }
+
+  try {
+    const response = await apiRequest(
+      `/api/arxiv/${encodeURIComponent(arxivId)}/bibtex`
+    );
+    const bibtex = (response?.bibtex || "").toString().trim();
+    if (!bibtex) throw new Error("Failed to fetch BibTeX");
+    const blob = new Blob([bibtex], { type: "text/plain;charset=utf-8" });
+    const base = safeFilename(arxivId || currentPaper.title || "paper");
+    downloadBlob(blob, `${base || "paper"}.bib`);
+    showToast("Exported BibTeX", "success");
+  } catch (error) {
+    showToast(error?.message || "Failed to export BibTeX", "error");
+  }
 }
 
 function formatMarkdown(text) {
@@ -790,6 +934,35 @@ function formatMarkdown(text) {
   if (inList) out.push("</ul>");
 
   return out.join("\n");
+}
+
+function updatePdfLink(pdfUrl) {
+  const pdfLink = document.getElementById("paperPdfLink");
+  if (!pdfLink) return;
+  if (pdfUrl) {
+    pdfLink.style.display = "inline-flex";
+    pdfLink.dataset.url = pdfUrl;
+  } else {
+    pdfLink.style.display = "none";
+    pdfLink.dataset.url = "";
+  }
+}
+
+function setExportMenuOpen(open) {
+  const menu = document.getElementById("exportMenu");
+  if (!menu) return;
+  menu.style.display = open ? "flex" : "none";
+}
+
+function toggleExportMenu() {
+  const menu = document.getElementById("exportMenu");
+  if (!menu) return;
+  const isOpen = menu.style.display !== "none";
+  setExportMenuOpen(!isOpen);
+}
+
+function closeExportMenu() {
+  setExportMenuOpen(false);
 }
 
 // --- Tags & Project ---
@@ -944,6 +1117,37 @@ async function savePaper() {
   }
 }
 
+async function deleteSavedPaper() {
+  if (!currentPaperId) return;
+  const deleteBtn = document.getElementById("paperDeleteBtn");
+  const original = deleteBtn?.textContent || "Delete";
+  if (deleteBtn) {
+    deleteBtn.disabled = true;
+    deleteBtn.textContent = "Deleting…";
+  }
+
+  const deletingId = currentPaperId;
+  try {
+    await apiRequest(`/api/papers/${deletingId}`, { method: "DELETE" });
+    savedPapers = savedPapers.filter((p) => p.id !== deletingId);
+    currentPaperId = null;
+    updateSaveButtonState();
+    renderSavedList();
+    persistDraft();
+    const status = document.getElementById("saveStatus");
+    if (status) status.textContent = "Saved (Local)";
+    showToast("Paper removed", "success");
+  } catch (error) {
+    if (handleAuthRequired(error)) return;
+    showToast(error?.message || "Failed to delete paper", "error");
+  } finally {
+    if (deleteBtn) {
+      deleteBtn.disabled = false;
+      deleteBtn.textContent = original;
+    }
+  }
+}
+
 async function savePaperUpdates() {
   if (!currentPaperId) return;
 
@@ -970,16 +1174,19 @@ async function savePaperUpdates() {
 
 function updateSaveButtonState() {
   const btn = document.getElementById("saveBtn");
+  const deleteBtn = document.getElementById("paperDeleteBtn");
   if (currentPaperId) {
     btn.innerHTML =
       '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg> Saved';
     btn.classList.add("btn-primary");
     btn.classList.remove("btn-outline");
+    if (deleteBtn) deleteBtn.style.display = "inline-flex";
   } else {
     btn.innerHTML =
       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg> Save';
     btn.classList.remove("btn-primary");
     btn.classList.add("btn-outline");
+    if (deleteBtn) deleteBtn.style.display = "none";
   }
 }
 
@@ -1093,13 +1300,7 @@ async function loadSavedPaper(paper) {
   document.getElementById("paperDate").textContent = new Date(
     hydrated.created_at
   ).toLocaleDateString();
-  document.getElementById("paperPdfLink").href = currentPaper.pdfUrl;
-  const pdfLink = document.getElementById("paperPdfLink");
-  if (currentPaper.pdfUrl) {
-    pdfLink.style.display = "inline-flex";
-  } else {
-    pdfLink.style.display = "none";
-  }
+  updatePdfLink(currentPaper.pdfUrl);
 
   const citeBtn = document.getElementById("paperCiteBtn");
   if (citeBtn)
@@ -1351,8 +1552,19 @@ document.addEventListener("click", (event) => {
   if (!userMenu.contains(event.target)) closeUserMenu();
 });
 
+document.addEventListener("click", (event) => {
+  const exportMenu = document.getElementById("exportMenu");
+  const exportBtn = document.getElementById("paperExportBtn");
+  if (!exportMenu || !exportBtn) return;
+  if (exportMenu.style.display === "none") return;
+  if (!exportMenu.contains(event.target) && !exportBtn.contains(event.target)) {
+    closeExportMenu();
+  }
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   closeUserMenu();
   closeSettingsModal();
+  closeExportMenu();
 });

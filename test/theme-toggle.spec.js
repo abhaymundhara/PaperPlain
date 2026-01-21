@@ -7,7 +7,7 @@ const html = fs.readFileSync(
   "utf8"
 );
 
-test("theme toggles are present in the header", () => {
-  assert.ok(html.includes("themeToggleBtn"));
-  assert.ok(html.includes("warmToggleBtn"));
+test("theme toggles are removed from the header", () => {
+  assert.equal(html.includes("themeToggleBtn"), false);
+  assert.equal(html.includes("warmToggleBtn"), false);
 });

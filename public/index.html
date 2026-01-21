@@ -39,71 +39,6 @@
         </div>
 
         <div class="nav-actions">
-          <div class="theme-controls">
-            <button
-              id="themeToggleBtn"
-              class="theme-toggle"
-              type="button"
-              aria-pressed="false"
-              aria-label="Switch to dark mode"
-              title="Switch to dark mode"
-              onclick="toggleTheme()"
-            >
-              <svg
-                class="theme-icon theme-icon-sun"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="12" cy="12" r="4"></circle>
-                <path d="M12 2v2"></path>
-                <path d="M12 20v2"></path>
-                <path d="M4.93 4.93l1.41 1.41"></path>
-                <path d="M17.66 17.66l1.41 1.41"></path>
-                <path d="M2 12h2"></path>
-                <path d="M20 12h2"></path>
-                <path d="M6.34 17.66l-1.41 1.41"></path>
-                <path d="M19.07 4.93l-1.41 1.41"></path>
-              </svg>
-              <svg
-                class="theme-icon theme-icon-moon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path>
-              </svg>
-            </button>
-            <button
-              id="warmToggleBtn"
-              class="theme-toggle"
-              type="button"
-              aria-pressed="false"
-              aria-label="Toggle warm mode"
-              title="Toggle warm mode"
-              onclick="toggleWarm()"
-            >
-              <svg
-                class="theme-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M12 3v10"></path>
-                <path d="M8 7a4 4 0 0 1 8 0"></path>
-                <path d="M12 13a4 4 0 1 1-4 4"></path>
-              </svg>
-            </button>
-          </div>
           <button
             id="signInBtn"
             class="btn btn-ghost btn-sm"
@@ -348,11 +283,11 @@
               <div class="paper-header">
                 <div class="paper-meta-row">
                   <span id="paperDate" class="meta-tag"></span>
-                  <a
+                  <button
                     id="paperPdfLink"
-                    href="#"
-                    target="_blank"
+                    type="button"
                     class="meta-link"
+                    onclick="downloadPdf()"
                   >
                     <svg
                       width="14"
@@ -370,7 +305,7 @@
                       <line x1="9" y1="15" x2="15" y2="15"></line>
                     </svg>
                     PDF
-                  </a>
+                  </button>
                   <button
                     id="paperCiteBtn"
                     type="button"
@@ -380,14 +315,43 @@
                   >
                     Cite
                   </button>
+                  <div class="export-menu">
+                    <button
+                      id="paperExportBtn"
+                      type="button"
+                      class="meta-link"
+                      style="display: none"
+                      onclick="toggleExportMenu()"
+                    >
+                      Export
+                    </button>
+                    <div
+                      id="exportMenu"
+                      class="export-menu-dropdown"
+                      style="display: none"
+                    >
+                      <button type="button" onclick="exportMarkdown()">
+                        Markdown (.md)
+                      </button>
+                      <button type="button" onclick="exportText()">
+                        Plain text (.txt)
+                      </button>
+                      <button type="button" onclick="exportJson()">
+                        JSON (.json)
+                      </button>
+                      <button type="button" onclick="exportBibtex()">
+                        BibTeX (.bib)
+                      </button>
+                    </div>
+                  </div>
                   <button
-                    id="paperExportBtn"
+                    id="paperDeleteBtn"
                     type="button"
                     class="meta-link"
                     style="display: none"
-                    onclick="exportMarkdown()"
+                    onclick="deleteSavedPaper()"
                   >
-                    Export
+                    Delete
                   </button>
                 </div>
                 <h1 id="paperTitle" class="paper-title"></h1>

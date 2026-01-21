@@ -356,7 +356,7 @@ function decodeHtmlEntities(input) {
     .replace(/&#39;/g, "'");
 }
 
-app.get("/api/arxiv/:id/bibtex", requireAuthSession(), async (req, res) => {
+app.get("/api/arxiv/:id/bibtex", async (req, res) => {
   try {
     const arxivId = (req.params.id || "").toString().trim();
     if (!/^[0-9]{4}\.[0-9]{4,5}$/.test(arxivId)) {
@@ -385,6 +385,35 @@ app.get("/api/arxiv/:id/bibtex", requireAuthSession(), async (req, res) => {
     res
       .status(500)
       .json({ message: error.message || "Failed to fetch BibTeX" });
+  }
+});
+
+app.get("/api/arxiv/:id/pdf", async (req, res) => {
+  try {
+    const arxivId = (req.params.id || "").toString().trim();
+    if (!/^[0-9]{4}\.[0-9]{4,5}$/.test(arxivId)) {
+      return res.status(400).json({ message: "Invalid arXiv ID" });
+    }
+
+    const url = `https://arxiv.org/pdf/${arxivId}.pdf`;
+    const response = await axios.get(url, {
+      responseType: "stream",
+      headers: { "User-Agent": "PaperPlain/1.0" },
+      timeout: 20000,
+    });
+
+    res.setHeader("content-type", "application/pdf");
+    res.setHeader(
+      "content-disposition",
+      `attachment; filename="${arxivId}.pdf"`
+    );
+
+    response.data.pipe(res);
+  } catch (error) {
+    const status = error?.response?.status || 502;
+    res.status(status).json({
+      message: error?.message || "Failed to download PDF",
+    });
   }
 });
 
