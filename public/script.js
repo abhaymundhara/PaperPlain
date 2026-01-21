@@ -10,7 +10,7 @@ const WARM_STORAGE_KEY = "paperplain-warm";
 const DRAFT_STORAGE_KEY = "paperplain:draft";
 
 // --- API Helper ---
-async function apiRequest(path, { method = "GET", body } = {}) {
+async function apiRequest(path, { method = "GET", body, cache } = {}) {
   const controller = new AbortController();
   const timeoutMs = 20000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -21,6 +21,9 @@ async function apiRequest(path, { method = "GET", body } = {}) {
     credentials: "same-origin",
     signal: controller.signal,
   };
+  if (typeof cache === "string") {
+    options.cache = cache;
+  }
 
   if (body !== undefined) {
     options.headers["Content-Type"] = "application/json";
@@ -541,7 +544,8 @@ async function copyCitation() {
 
   try {
     const response = await apiRequest(
-      `/api/arxiv/${encodeURIComponent(arxivId)}/bibtex`
+      `/api/arxiv/${encodeURIComponent(arxivId)}/bibtex`,
+      { cache: "no-store" }
     );
     const bibtex = (response?.bibtex || "").toString().trim();
     if (!bibtex) throw new Error("Failed to fetch BibTeX");
@@ -710,7 +714,8 @@ async function exportMarkdown() {
   if (arxivId) {
     try {
       const resp = await apiRequest(
-        `/api/arxiv/${encodeURIComponent(arxivId)}/bibtex`
+        `/api/arxiv/${encodeURIComponent(arxivId)}/bibtex`,
+        { cache: "no-store" }
       );
       bibtex = (resp?.bibtex || "").toString().trim();
     } catch {
@@ -849,7 +854,8 @@ async function exportBibtex() {
 
   try {
     const response = await apiRequest(
-      `/api/arxiv/${encodeURIComponent(arxivId)}/bibtex`
+      `/api/arxiv/${encodeURIComponent(arxivId)}/bibtex`,
+      { cache: "no-store" }
     );
     const bibtex = (response?.bibtex || "").toString().trim();
     if (!bibtex) throw new Error("Failed to fetch BibTeX");
