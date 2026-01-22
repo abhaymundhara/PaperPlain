@@ -1055,6 +1055,12 @@ button.meta-link:disabled {
   border-color: var(--slate-300);
 }
 
+.btn-disabled,
+.btn-disabled:hover {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn-ghost {
   background: transparent;
   color: var(--text-secondary);

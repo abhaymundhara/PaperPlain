@@ -1523,7 +1523,7 @@ async function createReadingList() {
 
 async function addToReadingList(listId) {
   if (!currentPaperId) {
-    showToast("Please save the paper first", "error");
+    showToast("Save the paper first, then add to a list", "info");
     return;
   }
 
@@ -1549,6 +1549,19 @@ function openReadingList(listId) {
   showToast("Reading list view coming soon", "info");
 }
 
+function updateAddToListButton() {
+  const btn = document.getElementById("readingListBtn");
+  if (!btn) return;
+  
+  if (currentPaperId) {
+    btn.disabled = false;
+    btn.classList.remove("btn-disabled");
+  } else {
+    btn.disabled = true;
+    btn.classList.add("btn-disabled");
+  }
+}
+
 function handleNewList(event) {
   if (event.key === "Enter") {
     createReadingList();
@@ -1558,18 +1571,30 @@ function handleNewList(event) {
 function updateSaveButtonState() {
   const btn = document.getElementById("saveBtn");
   const deleteBtn = document.getElementById("paperDeleteBtn");
+  const listBtn = document.getElementById("readingListBtn");
+  
   if (currentPaperId) {
     btn.innerHTML =
       '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg> Saved';
     btn.classList.add("btn-primary");
     btn.classList.remove("btn-outline");
     if (deleteBtn) deleteBtn.style.display = "inline-flex";
+    if (listBtn) {
+      listBtn.disabled = false;
+      listBtn.classList.remove("btn-disabled");
+      listBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg> Add to List';
+    }
   } else {
     btn.innerHTML =
       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg> Save';
     btn.classList.remove("btn-primary");
     btn.classList.add("btn-outline");
     if (deleteBtn) deleteBtn.style.display = "none";
+    if (listBtn) {
+      listBtn.disabled = true;
+      listBtn.classList.add("btn-disabled");
+      listBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg> Save First';
+    }
   }
 }
 
