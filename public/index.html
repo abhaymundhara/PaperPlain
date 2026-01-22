@@ -250,23 +250,6 @@
                 oninput="applyAdvancedFilters()"
               />
             </div>
-            <div class="filter-row">
-              <select id="sortBy" class="filter-select" onchange="applyAdvancedFilters()">
-                <option value="created_at">Date</option>
-                <option value="title">Title</option>
-                <option value="citation_count">Citations</option>
-                <option value="year">Year</option>
-              </select>
-              <select id="sortOrder" class="filter-select" onchange="applyAdvancedFilters()">
-                <option value="desc">Newest</option>
-                <option value="asc">Oldest</option>
-              </select>
-            </div>
-            <div class="pagination-controls">
-              <button type="button" class="btn-xs" onclick="changePage(-1)">← Prev</button>
-              <span id="pageInfo">Page 1</span>
-              <button type="button" class="btn-xs" onclick="changePage(1)">Next →</button>
-            </div>
           </div>
 
           <div class="sidebar-content">
