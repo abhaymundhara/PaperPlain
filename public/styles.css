@@ -484,6 +484,224 @@ html[data-theme="dark"] .theme-icon-moon {
   background: var(--slate-100);
 }
 
+/* Source Type Selector */
+.source-type-selector {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.source-tab {
+  padding: 6px 12px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-panel);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.source-tab:hover {
+  background: var(--slate-100);
+}
+
+.source-tab.active {
+  background: var(--primary-500);
+  color: white;
+  border-color: var(--primary-500);
+}
+
+/* Style Select */
+.style-select {
+  padding: 8px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  min-width: 120px;
+}
+
+/* Summary Actions */
+.summary-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.summary-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Reading List Menu */
+.reading-list-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 220px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  z-index: 20;
+}
+
+.reading-list-header {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.reading-list-header input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.reading-list-header button {
+  padding: 6px 10px;
+  background: var(--primary-500);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.reading-lists-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.reading-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.reading-list-item:hover {
+  background: var(--slate-100);
+}
+
+.reading-list-item .count {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.nav-lists-small .nav-item {
+  padding: 6px 10px;
+}
+
+/* Filter Controls */
+.filter-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.filter-select {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+/* Pagination */
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pagination-controls button {
+  padding: 4px 8px;
+  background: var(--slate-100);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.pagination-controls button:hover {
+  background: var(--slate-200);
+}
+
+/* Q&A Suggestions */
+.qa-suggestions {
+  padding: 8px 12px;
+  background: var(--slate-50);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.suggestions-label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+
+.suggestions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.suggestion-chip {
+  padding: 4px 10px;
+  background: var(--primary-50);
+  border: 1px solid var(--primary-100);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--primary-700);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggestion-chip:hover {
+  background: var(--primary-100);
+}
+
+/* Paper Actions */
+.paper-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Meta Tag Secondary */
+.meta-tag-secondary {
+  background: var(--primary-100);
+  color: var(--primary-700);
+}
+
 .meta-tag {
   font-size: 12px;
   font-weight: 500;

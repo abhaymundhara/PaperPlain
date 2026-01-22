@@ -239,16 +239,59 @@
                 type="text"
                 id="savedSearch"
                 placeholder="Search papers..."
-                oninput="searchSaved()"
+                oninput="applyAdvancedFilters()"
               />
             </div>
             <div class="filter-box">
               <input
                 type="text"
                 id="projectFilter"
-                placeholder="Filter by project..."
-                oninput="applyProjectFilter()"
+                placeholder="Project..."
+                oninput="applyAdvancedFilters()"
               />
+            </div>
+            <div class="filter-row">
+              <select id="sortBy" class="filter-select" onchange="applyAdvancedFilters()">
+                <option value="created_at">Date</option>
+                <option value="title">Title</option>
+                <option value="citation_count">Citations</option>
+                <option value="year">Year</option>
+              </select>
+              <select id="sortOrder" class="filter-select" onchange="applyAdvancedFilters()">
+                <option value="desc">Newest</option>
+                <option value="asc">Oldest</option>
+              </select>
+            </div>
+            <div class="pagination-controls">
+              <button type="button" class="btn-xs" onclick="changePage(-1)">← Prev</button>
+              <span id="pageInfo">Page 1</span>
+              <button type="button" class="btn-xs" onclick="changePage(1)">Next →</button>
+            </div>
+          </div>
+
+          <div class="sidebar-section">
+            <div class="section-header">
+              <span class="section-title">Reading Lists</span>
+              <button
+                class="btn-icon btn-xs"
+                onclick="refreshReadingLists()"
+                title="Refresh"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M23 4v6h-6"></path>
+                  <path d="M1 20v-6h6"></path>
+                </svg>
+              </button>
+            </div>
+            <div id="sidebarLists" class="nav-list nav-lists-small">
+              <!-- Reading lists will be injected here -->
             </div>
           </div>
 
@@ -263,14 +306,41 @@
         <main class="main-content">
           <div class="content-container">
             <div class="input-area">
+              <div class="source-type-selector">
+                <button type="button" class="source-tab active" data-type="arxiv" onclick="selectSourceType('arxiv')">arXiv</button>
+                <button type="button" class="source-tab" data-type="doi" onclick="selectSourceType('doi')">DOI</button>
+                <button type="button" class="source-tab" data-type="pubmed" onclick="selectSourceType('pubmed')">PubMed</button>
+              </div>
               <div class="url-input-wrapper">
                 <input
                   type="text"
                   id="arxivUrl"
-                  class="main-input"
+                  class="main-input source-input source-arxiv"
                   placeholder="Paste arXiv URL (e.g., https://arxiv.org/abs/2301.00234)"
                   autocomplete="off"
                 />
+                <input
+                  type="text"
+                  id="doiInput"
+                  class="main-input source-input source-doi"
+                  placeholder="Paste DOI (e.g., 10.1038/nature12373)"
+                  autocomplete="off"
+                  style="display: none"
+                />
+                <input
+                  type="text"
+                  id="pubmedInput"
+                  class="main-input source-input source-pubmed"
+                  placeholder="Paste PMID (e.g., 23456789)"
+                  autocomplete="off"
+                  style="display: none"
+                />
+                <select id="summaryStyle" class="style-select">
+                  <option value="simple">Simple</option>
+                  <option value="detailed">Detailed</option>
+                  <option value="technical">Technical</option>
+                  <option value="tldr">TL;DR</option>
+                </select>
                 <button
                   id="simplifyBtn"
                   class="btn btn-primary"
@@ -306,6 +376,7 @@
               <div class="paper-header">
                 <div class="paper-meta-row">
                   <span id="paperDate" class="meta-tag"></span>
+                  <span id="paperSource" class="meta-tag meta-tag-secondary" style="display: none"></span>
                   <button
                     id="paperPdfLink"
                     type="button"
@@ -353,17 +424,20 @@
                       class="export-menu-dropdown"
                       style="display: none"
                     >
-                      <button type="button" onclick="exportMarkdown()">
+                      <button type="button" onclick="exportFormat('bibtex')">
+                        BibTeX (.bib)
+                      </button>
+                      <button type="button" onclick="exportFormat('ris')">
+                        RIS (.ris)
+                      </button>
+                      <button type="button" onclick="exportFormat('markdown')">
                         Markdown (.md)
                       </button>
-                      <button type="button" onclick="exportText()">
-                        Plain text (.txt)
-                      </button>
-                      <button type="button" onclick="exportJson()">
+                      <button type="button" onclick="exportFormat('json')">
                         JSON (.json)
                       </button>
-                      <button type="button" onclick="exportBibtex()">
-                        BibTeX (.bib)
+                      <button type="button" onclick="exportFormat('csv')">
+                        CSV (.csv)
                       </button>
                     </div>
                   </div>
@@ -381,7 +455,102 @@
                 <p id="paperAuthors" class="paper-authors"></p>
 
                 <div class="paper-actions">
-                  <div class="input-with-icon">
+                  <div class="action-group">
+                    <div class="input-with-icon">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                        ></path>
+                      </svg>
+                      <input
+                        type="text"
+                        id="paperProject"
+                        placeholder="Project..."
+                        onchange="updatePaperProject()"
+                      />
+                    </div>
+                    <div class="tags-input-container">
+                      <div id="tagsList" class="tags-list"></div>
+                      <input
+                        type="text"
+                        id="newTagInput"
+                        placeholder="+ Tag"
+                        onkeydown="handleTagInput(event)"
+                      />
+                    </div>
+                  </div>
+                  <div class="action-group">
+                    <button
+                      id="readingListBtn"
+                      class="btn btn-outline btn-sm"
+                      onclick="toggleReadingListMenu()"
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <line x1="8" y1="6" x2="21" y2="6"></line>
+                        <line x1="8" y1="12" x2="21" y2="12"></line>
+                        <line x1="8" y1="18" x2="21" y2="18"></line>
+                        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                      </svg>
+                      Add to List
+                    </button>
+                    <div id="readingListMenu" class="reading-list-menu" style="display: none">
+                      <div class="reading-list-header">
+                        <input
+                          type="text"
+                          id="newListName"
+                          placeholder="New list name..."
+                          onkeydown="handleNewList(event)"
+                        />
+                        <button type="button" onclick="createReadingList()">Create</button>
+                      </div>
+                      <div id="readingListsList" class="reading-lists-list"></div>
+                    </div>
+                    <button
+                      id="saveBtn"
+                      class="btn btn-outline btn-sm"
+                      onclick="savePaper()"
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+                        ></path>
+                      </svg>
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="paper-body">
+                <div class="summary-actions">
+                  <button
+                    id="regenerateBtn"
+                    class="btn btn-outline btn-sm"
+                    onclick="regenerateSummary()"
+                  >
                     <svg
                       width="14"
                       height="14"
@@ -390,49 +559,33 @@
                       stroke="currentColor"
                       stroke-width="2"
                     >
-                      <path
-                        d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                      ></path>
+                      <path d="M23 4v6h-6"></path>
+                      <path d="M1 20v-6h6"></path>
+                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                     </svg>
-                    <input
-                      type="text"
-                      id="paperProject"
-                      placeholder="Add to project..."
-                      onchange="updatePaperProject()"
-                    />
-                  </div>
-                  <div class="tags-input-container">
-                    <div id="tagsList" class="tags-list"></div>
-                    <input
-                      type="text"
-                      id="newTagInput"
-                      placeholder="+ Tag"
-                      onkeydown="handleTagInput(event)"
-                    />
-                  </div>
+                    Regenerate
+                  </button>
                   <button
-                    id="saveBtn"
+                    id="criticalAnalysisBtn"
                     class="btn btn-outline btn-sm"
-                    onclick="savePaper()"
+                    onclick="runCriticalAnalysis()"
                   >
                     <svg
-                      width="16"
-                      height="16"
+                      width="14"
+                      height="14"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
                       stroke-width="2"
                     >
-                      <path
-                        d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
-                      ></path>
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
                     </svg>
-                    Save
+                    Critical Analysis
                   </button>
                 </div>
-              </div>
-
-              <div class="paper-body">
+                
                 <div class="section-card">
                   <h3 class="section-heading">
                     <svg
@@ -472,6 +625,26 @@
                     Key Takeaways
                   </h3>
                   <div id="takeawaysContent" class="content-block"></div>
+                </div>
+
+                <div id="criticalAnalysisSection" class="section-card" style="display: none">
+                  <h3 class="section-heading">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                    Critical Analysis
+                  </h3>
+                  <div id="criticalAnalysisContent" class="content-block"></div>
                 </div>
               </div>
             </div>
@@ -538,6 +711,12 @@
                   <p>Ask questions about the paper.</p>
                 </div>
               </div>
+              
+              <div id="qaSuggestions" class="qa-suggestions" style="display: none">
+                <p class="suggestions-label">Suggested questions:</p>
+                <div id="suggestionsList" class="suggestions-list"></div>
+              </div>
+              
               <div class="qa-input-area">
                 <textarea
                   id="qaInput"

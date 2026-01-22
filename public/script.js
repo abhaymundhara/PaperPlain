@@ -5,6 +5,9 @@ let currentPaperId = null;
 let projectFilter = "";
 let currentTags = [];
 let currentQaHistory = [];
+let currentSourceType = "arxiv";
+let readingLists = [];
+let currentPage = 1;
 const THEME_STORAGE_KEY = "paperplain-theme";
 const WARM_STORAGE_KEY = "paperplain-warm";
 const DRAFT_STORAGE_KEY = "paperplain:draft";
@@ -475,12 +478,38 @@ async function uploadPdf(event) {
 }
 
 async function simplifyPaper() {
-  const urlInput = document.getElementById("arxivUrl");
-  const url = urlInput.value.trim();
+  const style = document.getElementById("summaryStyle")?.value || "simple";
+  let url = "";
+  let endpoint = "/api/simplify";
+  let body = {};
 
-  if (!url) {
-    showToast("Please enter an ArXiv URL", "error");
-    return;
+  if (currentSourceType === "arxiv") {
+    const urlInput = document.getElementById("arxivUrl");
+    url = urlInput?.value?.trim() || "";
+    if (!url) {
+      showToast("Please enter an arXiv URL", "error");
+      return;
+    }
+    endpoint = "/api/simplify";
+    body = { arxivUrl: url, style };
+  } else if (currentSourceType === "doi") {
+    const doiInput = document.getElementById("doiInput");
+    url = doiInput?.value?.trim() || "";
+    if (!url) {
+      showToast("Please enter a DOI", "error");
+      return;
+    }
+    endpoint = "/api/simplify/doi";
+    body = { doi: url, style };
+  } else if (currentSourceType === "pubmed") {
+    const pubmedInput = document.getElementById("pubmedInput");
+    url = pubmedInput?.value?.trim() || "";
+    if (!url) {
+      showToast("Please enter a PMID", "error");
+      return;
+    }
+    endpoint = "/api/simplify/pubmed";
+    body = { pmid: url, style };
   }
 
   const btn = document.getElementById("simplifyBtn");
@@ -489,10 +518,10 @@ async function simplifyPaper() {
   btn.innerHTML = '<span class="loader"></span> Processing...';
 
   try {
-    const response = await fetch("/api/simplify", {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ arxivUrl: url }),
+      body: JSON.stringify(body),
     });
 
     const result = await response.json();
@@ -500,12 +529,147 @@ async function simplifyPaper() {
       throw new Error(result.error || "Failed to simplify paper");
 
     displayResults(result.data);
+    
+    // Fetch suggestions after displaying results
+    if (result.data.title && result.data.abstract) {
+      fetchSuggestions(result.data);
+    }
   } catch (error) {
     showToast(error.message || "An error occurred", "error");
   } finally {
     btn.disabled = false;
     btn.innerHTML = originalText;
   }
+}
+
+function selectSourceType(type) {
+  currentSourceType = type;
+  
+  // Update tab styles
+  document.querySelectorAll(".source-tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.type === type);
+  });
+  
+  // Show/hide inputs
+  document.querySelectorAll(".source-input").forEach(input => {
+    input.style.display = "none";
+  });
+  document.querySelector(`.source-${type}`).style.display = "block";
+}
+
+async function regenerateSummary() {
+  if (!currentPaper) return;
+  
+  const style = document.getElementById("summaryStyle")?.value || "simple";
+  let endpoint = "/api/simplify";
+  let body = { style };
+  
+  if (currentPaper.arxivId) {
+    body.arxivUrl = `https://arxiv.org/abs/${currentPaper.arxivId}`;
+  } else if (currentPaper.doi) {
+    endpoint = "/api/simplify/doi";
+    body.doi = currentPaper.doi;
+  } else if (currentPaper.pmid) {
+    endpoint = "/api/simplify/pubmed";
+    body.pmid = currentPaper.pmid;
+  } else {
+    showToast("Cannot regenerate: no source identifier", "error");
+    return;
+  }
+
+  const btn = document.getElementById("regenerateBtn");
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loader"></span>';
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const result = await response.json();
+    if (!result.success)
+      throw new Error(result.error || "Failed to regenerate");
+
+    currentPaper.summary = result.data.simplifiedSummary;
+    renderSummary(result.data.simplifiedSummary);
+    currentSummary = result.data.simplifiedSummary;
+    
+    // Update draft
+    persistDraft();
+  } catch (error) {
+    showToast(error.message || "Failed to regenerate", "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  }
+}
+
+async function runCriticalAnalysis() {
+  if (!currentPaper) return;
+  
+  const section = document.getElementById("criticalAnalysisSection");
+  const content = document.getElementById("criticalAnalysisContent");
+  
+  section.style.display = "block";
+  content.innerHTML = '<span class="loader"></span> Analyzing...';
+
+  try {
+    const response = await fetch("/api/analyze/critical", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        paper: currentPaper,
+        summary: currentSummary
+      }),
+    });
+
+    const result = await response.json();
+    if (!result.success)
+      throw new Error(result.error || "Failed to analyze");
+
+    content.innerHTML = formatMarkdown(result.data.analysis);
+    section.scrollIntoView({ behavior: "smooth" });
+  } catch (error) {
+    content.innerHTML = `<p class="error">${error.message || "Analysis failed"}</p>`;
+  }
+}
+
+async function fetchSuggestions(paper) {
+  try {
+    const response = await fetch("/api/analyze/suggestions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paper }),
+    });
+
+    const result = await response.json();
+    if (result.success && result.data.suggestions?.length > 0) {
+      displaySuggestions(result.data.suggestions);
+    }
+  } catch (e) {
+    // Silently fail - suggestions are optional
+  }
+}
+
+function displaySuggestions(suggestions) {
+  const container = document.getElementById("qaSuggestions");
+  const list = document.getElementById("suggestionsList");
+  
+  list.innerHTML = suggestions.map(q => 
+    `<button class="suggestion-chip" onclick="useSuggestion(this)">${escapeHtml(q)}</button>`
+  ).join("");
+  
+  container.style.display = "block";
+}
+
+function useSuggestion(btn) {
+  const input = document.getElementById("qaInput");
+  input.value = btn.textContent;
+  input.focus();
+  document.getElementById("qaSuggestions").style.display = "none";
 }
 
 async function copyTextToClipboard(text) {
@@ -618,7 +782,8 @@ function displayResults(data) {
   document.getElementById("paperTitle").textContent = data.title;
   document.getElementById("paperAuthors").textContent = data.authors;
 
-  const date = data.published ? new Date(data.published) : null;
+  // Show date
+  const date = data.published || data.year ? new Date(data.published || `${data.year}-01-01`) : null;
   document.getElementById("paperDate").textContent =
     date && !Number.isNaN(date.getTime())
       ? date.toLocaleDateString("en-US", {
@@ -626,7 +791,17 @@ function displayResults(data) {
           month: "short",
           day: "numeric",
         })
-      : "";
+      : (data.year || "");
+
+  // Show source badge
+  const sourceEl = document.getElementById("paperSource");
+  if (sourceEl) {
+    const sourceLabel = data.source === 'crossref' ? 'DOI' : 
+                       data.source === 'pubmed' ? 'PubMed' : 
+                       data.source === 'pdf' ? 'PDF' : 'arXiv';
+    sourceEl.textContent = sourceLabel;
+    sourceEl.style.display = "inline-flex";
+  }
 
   updatePdfLink(data.pdfUrl);
 
@@ -639,19 +814,32 @@ function displayResults(data) {
   const summaryText = (data.simplifiedSummary || "").toString();
   renderSummary(summaryText);
 
+  // Hide critical analysis section when loading new paper
+  document.getElementById("criticalAnalysisSection").style.display = "none";
+  
+  // Hide suggestions
+  document.getElementById("qaSuggestions").style.display = "none";
+
   // Reset State
   currentPaper = {
     arxivId: data.arxivId || "",
+    doi: data.doi || "",
+    pmid: data.pmid || "",
     title: data.title,
     authors: data.authors,
     abstract: data.abstract,
     pdfUrl: data.pdfUrl,
     summary: data.simplifiedSummary,
+    source: data.source || 'arxiv',
+    journal: data.journal || "",
+    year: data.year || null,
+    citationCount: data.citationCount || 0,
     project: "",
     tags: [],
   };
   currentPaperId = null;
   currentTags = [];
+  currentSummary = summaryText;
 
   document.getElementById("paperProject").value = "";
   document.getElementById("userNotes").value = "";
@@ -690,6 +878,8 @@ function getExportState() {
     title: currentPaper.title || "Untitled",
     authors: currentPaper.authors || "",
     arxivId: currentPaper.arxivId || "",
+    doi: currentPaper.doi || "",
+    pmid: currentPaper.pmid || "",
     pdfUrl: currentPaper.pdfUrl || "",
     project: document.getElementById("paperProject")?.value?.trim() || "",
     tags: Array.isArray(currentTags) ? currentTags : [],
@@ -697,6 +887,51 @@ function getExportState() {
     summary: currentPaper.summary || "",
     qa: Array.isArray(currentQaHistory) ? currentQaHistory : [],
   };
+}
+
+async function exportFormat(format) {
+  closeExportMenu();
+  
+  if (!currentPaperId) {
+    // Fallback to old export for non-saved papers
+    if (format === 'markdown') {
+      exportMarkdown();
+    } else if (format === 'json') {
+      exportJson();
+    } else {
+      showToast("Please save the paper first", "error");
+    }
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/papers/${currentPaperId}/export?format=${format}`, {
+      method: "GET",
+      credentials: "same-origin"
+    });
+
+    if (!response.ok) {
+      throw new Error("Export failed");
+    }
+
+    const contentType = response.headers.get("content-type") || "text/plain";
+    const blob = await response.blob();
+    const ext = format === 'bibtex' ? 'bib' : format;
+    const filename = `paper.${ext}`;
+    
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast(`Exported ${format.toUpperCase()}`, "success");
+  } catch (error) {
+    showToast(error.message || "Export failed", "error");
+  }
 }
 
 async function exportMarkdown() {
@@ -1178,6 +1413,116 @@ async function savePaperUpdates() {
   }
 }
 
+// --- Reading Lists ---
+
+async function loadReadingLists() {
+  try {
+    const response = await apiRequest("/api/lists");
+    readingLists = response.lists || [];
+    renderSidebarLists();
+  } catch (error) {
+    console.error("Failed to load reading lists", error);
+  }
+}
+
+function renderSidebarLists() {
+  const container = document.getElementById("sidebarLists");
+  if (!container) return;
+  
+  container.innerHTML = readingLists.map(list => `
+    <button class="nav-item" onclick="openReadingList(${list.id})">
+      <span>${escapeHtml(list.name)}</span>
+      <span class="count">${list.paper_count || 0}</span>
+    </button>
+  `).join("");
+}
+
+async function refreshReadingLists() {
+  await loadReadingLists();
+}
+
+function toggleReadingListMenu() {
+  const menu = document.getElementById("readingListMenu");
+  menu.style.display = menu.style.display === "none" ? "block" : "none";
+  
+  if (menu.style.display === "block") {
+    renderReadingListsList();
+  }
+}
+
+function renderReadingListsList() {
+  const container = document.getElementById("readingListsList");
+  if (!container) return;
+  
+  container.innerHTML = readingLists.map(list => `
+    <div class="reading-list-item" onclick="addToReadingList(${list.id})">
+      <span>${escapeHtml(list.name)}</span>
+      <span class="count">${list.paper_count || 0}</span>
+    </div>
+  `).join("");
+}
+
+async function createReadingList() {
+  const input = document.getElementById("newListName");
+  const name = input?.value?.trim();
+  
+  if (!name) {
+    showToast("Please enter a list name", "error");
+    return;
+  }
+
+  try {
+    const response = await apiRequest("/api/lists", {
+      method: "POST",
+      body: { name },
+    });
+    
+    if (response.success) {
+      readingLists.push(response.list);
+      renderSidebarLists();
+      renderReadingListsList();
+      input.value = "";
+      showToast("List created", "success");
+    }
+  } catch (error) {
+    showToast(error.message || "Failed to create list", "error");
+  }
+}
+
+async function addToReadingList(listId) {
+  if (!currentPaperId) {
+    showToast("Please save the paper first", "error");
+    return;
+  }
+
+  try {
+    const response = await apiRequest(`/api/lists/${listId}/papers`, {
+      method: "POST",
+      body: { paper_id: currentPaperId },
+    });
+    
+    if (response.success) {
+      showToast("Added to list", "success");
+      toggleReadingListMenu();
+      loadReadingLists();
+    }
+  } catch (error) {
+    showToast(error.message || "Failed to add to list", "error");
+  }
+}
+
+function openReadingList(listId) {
+  // Filter saved papers by reading list
+  // For now, just show all papers (full implementation would require API change)
+  showToast("Reading list view coming soon", "info");
+}
+
+function handleNewList(event) {
+  if (event.key === "Enter") {
+    createReadingList();
+  }
+}
+
 function updateSaveButtonState() {
   const btn = document.getElementById("saveBtn");
   const deleteBtn = document.getElementById("paperDeleteBtn");
@@ -1199,24 +1544,55 @@ function updateSaveButtonState() {
 // --- Sidebar & Saved Papers ---
 
 async function loadSavedPapers() {
+  const q = document.getElementById("savedSearch")?.value?.trim() || "";
+  const project = document.getElementById("projectFilter")?.value?.trim() || "";
+  const sortBy = document.getElementById("sortBy")?.value || "created_at";
+  const sortOrder = document.getElementById("sortOrder")?.value || "desc";
+  
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (project) params.set("project", project);
+  params.set("sort_by", sortBy);
+  params.set("sort_order", sortOrder);
+  params.set("page", currentPage);
+  params.set("limit", "50");
+
   try {
-    const response = await apiRequest("/api/papers");
+    const response = await apiRequest(`/api/papers?${params.toString()}`);
     savedPapers = response.papers || [];
     renderSavedList();
+    
+    // Update pagination info
+    const pageInfo = document.getElementById("pageInfo");
+    if (pageInfo && response.pagination) {
+      pageInfo.textContent = `Page ${response.pagination.page}`;
+    }
   } catch (error) {
     console.error("Failed to load saved papers", error);
   }
+}
+
+function applyAdvancedFilters() {
+  currentPage = 1;
+  loadSavedPapers();
+}
+
+function changePage(delta) {
+  currentPage += delta;
+  if (currentPage < 1) currentPage = 1;
+  loadSavedPapers();
 }
 
 function renderSavedList() {
   const container = document.getElementById("savedList");
   container.innerHTML = "";
 
-  const search = document.getElementById("savedSearch").value.toLowerCase();
-  const project = document.getElementById("projectFilter").value.toLowerCase();
+  const search = document.getElementById("savedSearch")?.value?.toLowerCase() || "";
+  const project = document.getElementById("projectFilter")?.value?.toLowerCase() || "";
 
   const filtered = savedPapers.filter((p) => {
-    const matchesSearch = (p.title || "").toLowerCase().includes(search);
+    const matchesSearch = (p.title || "").toLowerCase().includes(search) ||
+                         (p.authors || "").toLowerCase().includes(search);
     const matchesProject =
       !project || (p.project || "").toLowerCase().includes(project);
     return matchesSearch && matchesProject;
@@ -1238,11 +1614,14 @@ function renderSavedList() {
       day: "numeric",
     });
 
+    const citationCount = paper.citation_count || 0;
+    const sourceIcon = paper.doi ? '📄' : paper.pmid ? '🔬' : '📑';
+
     item.innerHTML = `
       <span class="nav-item-title">${paper.title}</span>
       <div class="nav-item-meta">
-        <span>${paper.project || "No Project"}</span>
-        <span>${date}</span>
+        <span>${sourceIcon} ${paper.project || "No Project"}</span>
+        <span>${date}${citationCount ? ` • ${citationCount} citations` : ""}</span>
       </div>
     `;
     container.appendChild(item);
@@ -1367,6 +1746,7 @@ function applyProjectFilter() {
 
 function refreshSavedList() {
   loadSavedPapers();
+  loadReadingLists();
 }
 
 // --- Right Panel & Q&A ---
@@ -1547,6 +1927,7 @@ document.addEventListener("DOMContentLoaded", () => {
   (async () => {
     await refreshSession();
     restoreDraft();
+    loadReadingLists();
   })();
 });
 
@@ -1565,6 +1946,16 @@ document.addEventListener("click", (event) => {
   if (exportMenu.style.display === "none") return;
   if (!exportMenu.contains(event.target) && !exportBtn.contains(event.target)) {
     closeExportMenu();
+  }
+});
+
+document.addEventListener("click", (event) => {
+  const readingListMenu = document.getElementById("readingListMenu");
+  const readingListBtn = document.getElementById("readingListBtn");
+  if (!readingListMenu || !readingListBtn) return;
+  if (readingListMenu.style.display === "none") return;
+  if (!readingListMenu.contains(event.target) && !readingListBtn.contains(event.target)) {
+    readingListMenu.style.display = "none";
   }
 });
 
