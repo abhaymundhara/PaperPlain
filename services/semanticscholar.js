@@ -40,9 +40,12 @@ export async function searchPapers(query, limit = 10, fields = DEFAULT_FIELDS) {
   const response = await fetch(url.toString(), { headers });
   
   if (!response.ok) {
-    throw new Error(`Semantic Scholar search error: ${response.status}`);
+    const error = new Error(`Semantic Scholar search error: ${response.status}`);
+    error.status = response.status;
+    error.retryAfter = response.headers.get("retry-after");
+    throw error;
   }
-  
+
   return response.json();
 }
 

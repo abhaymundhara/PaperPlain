@@ -1169,6 +1169,16 @@ app.get("/api/semanticscholar/search", async (req, res) => {
     });
   } catch (error) {
     console.error("Semantic Scholar Error:", error);
+    if (error?.status === 429) {
+      const retryAfter = error.retryAfter || "60";
+      res.setHeader("Retry-After", retryAfter);
+      return res.status(429).json({
+        success: false,
+        error:
+          error.message ||
+          "Semantic Scholar rate limit exceeded. Please try again in a moment.",
+      });
+    }
     res.status(500).json({
       success: false,
       error: error.message || "Search failed",
