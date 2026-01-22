@@ -6,7 +6,6 @@ let projectFilter = "";
 let currentTags = [];
 let currentQaHistory = [];
 let currentSourceType = "arxiv";
-let readingLists = [];
 let currentPage = 1;
 const THEME_STORAGE_KEY = "paperplain-theme";
 const WARM_STORAGE_KEY = "paperplain-warm";
@@ -117,7 +116,7 @@ function clearDraft() {
 function renderSummary(summaryText) {
   const summary = (summaryText || "").toString();
   const keyTermsMatch = summary.match(
-    /(\*\*\s*Key\s*Terms\s*:\s*\*\*|Key\s*Terms\s*:)/i
+    /(\*\*\s*Key\s*Terms\s*:\s*\*\*|Key\s*Terms\s*:)/i,
   );
   const keyTermsIndex = keyTermsMatch?.index ?? -1;
 
@@ -128,7 +127,7 @@ function renderSummary(summaryText) {
   if (keyTerms) {
     keyTerms = keyTerms.replace(
       /^(\*\*\s*)?Key\s*Terms\s*:\s*(\*\*)?/i,
-      "**Key Terms:**"
+      "**Key Terms:**",
     );
   }
 
@@ -459,7 +458,7 @@ async function uploadPdf(event) {
     const result = await response.json();
     if (!response.ok || !result?.success) {
       throw new Error(
-        result?.message || result?.error || "Failed to simplify PDF"
+        result?.message || result?.error || "Failed to simplify PDF",
       );
     }
 
@@ -529,7 +528,7 @@ async function simplifyPaper() {
       throw new Error(result.error || "Failed to simplify paper");
 
     displayResults(result.data);
-    
+
     // Fetch suggestions after displaying results
     if (result.data.title && result.data.abstract) {
       fetchSuggestions(result.data);
@@ -544,14 +543,14 @@ async function simplifyPaper() {
 
 function selectSourceType(type) {
   currentSourceType = type;
-  
+
   // Update tab styles
-  document.querySelectorAll(".source-tab").forEach(tab => {
+  document.querySelectorAll(".source-tab").forEach((tab) => {
     tab.classList.toggle("active", tab.dataset.type === type);
   });
-  
+
   // Show/hide inputs
-  document.querySelectorAll(".source-input").forEach(input => {
+  document.querySelectorAll(".source-input").forEach((input) => {
     input.style.display = "none";
   });
   document.querySelector(`.source-${type}`).style.display = "block";
@@ -559,11 +558,11 @@ function selectSourceType(type) {
 
 async function regenerateSummary() {
   if (!currentPaper) return;
-  
+
   const style = document.getElementById("summaryStyle")?.value || "simple";
   let endpoint = "/api/simplify";
   let body = { style };
-  
+
   if (currentPaper.arxivId) {
     body.arxivUrl = `https://arxiv.org/abs/${currentPaper.arxivId}`;
   } else if (currentPaper.doi) {
@@ -596,7 +595,7 @@ async function regenerateSummary() {
     currentPaper.summary = result.data.simplifiedSummary;
     renderSummary(result.data.simplifiedSummary);
     currentSummary = result.data.simplifiedSummary;
-    
+
     // Update draft
     persistDraft();
   } catch (error) {
@@ -609,10 +608,10 @@ async function regenerateSummary() {
 
 async function runCriticalAnalysis() {
   if (!currentPaper) return;
-  
+
   const section = document.getElementById("criticalAnalysisSection");
   const content = document.getElementById("criticalAnalysisContent");
-  
+
   section.style.display = "block";
   content.innerHTML = '<span class="loader"></span> Analyzing...';
 
@@ -622,13 +621,12 @@ async function runCriticalAnalysis() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         paper: currentPaper,
-        summary: currentSummary
+        summary: currentSummary,
       }),
     });
 
     const result = await response.json();
-    if (!result.success)
-      throw new Error(result.error || "Failed to analyze");
+    if (!result.success) throw new Error(result.error || "Failed to analyze");
 
     content.innerHTML = formatMarkdown(result.data.analysis);
     section.scrollIntoView({ behavior: "smooth" });
@@ -657,11 +655,14 @@ async function fetchSuggestions(paper) {
 function displaySuggestions(suggestions) {
   const container = document.getElementById("qaSuggestions");
   const list = document.getElementById("suggestionsList");
-  
-  list.innerHTML = suggestions.map(q => 
-    `<button class="suggestion-chip" onclick="useSuggestion(this)">${escapeHtml(q)}</button>`
-  ).join("");
-  
+
+  list.innerHTML = suggestions
+    .map(
+      (q) =>
+        `<button class="suggestion-chip" onclick="useSuggestion(this)">${escapeHtml(q)}</button>`,
+    )
+    .join("");
+
   container.style.display = "block";
 }
 
@@ -709,7 +710,7 @@ async function copyCitation() {
   try {
     const response = await apiRequest(
       `/api/arxiv/${encodeURIComponent(arxivId)}/bibtex`,
-      { cache: "no-store" }
+      { cache: "no-store" },
     );
     const bibtex = (response?.bibtex || "").toString().trim();
     if (!bibtex) throw new Error("Failed to fetch BibTeX");
@@ -783,7 +784,10 @@ function displayResults(data) {
   document.getElementById("paperAuthors").textContent = data.authors;
 
   // Show date
-  const date = data.published || data.year ? new Date(data.published || `${data.year}-01-01`) : null;
+  const date =
+    data.published || data.year
+      ? new Date(data.published || `${data.year}-01-01`)
+      : null;
   document.getElementById("paperDate").textContent =
     date && !Number.isNaN(date.getTime())
       ? date.toLocaleDateString("en-US", {
@@ -791,14 +795,19 @@ function displayResults(data) {
           month: "short",
           day: "numeric",
         })
-      : (data.year || "");
+      : data.year || "";
 
   // Show source badge
   const sourceEl = document.getElementById("paperSource");
   if (sourceEl) {
-    const sourceLabel = data.source === 'crossref' ? 'DOI' : 
-                       data.source === 'pubmed' ? 'PubMed' : 
-                       data.source === 'pdf' ? 'PDF' : 'arXiv';
+    const sourceLabel =
+      data.source === "crossref"
+        ? "DOI"
+        : data.source === "pubmed"
+          ? "PubMed"
+          : data.source === "pdf"
+            ? "PDF"
+            : "arXiv";
     sourceEl.textContent = sourceLabel;
     sourceEl.style.display = "inline-flex";
   }
@@ -816,7 +825,7 @@ function displayResults(data) {
 
   // Hide critical analysis section when loading new paper
   document.getElementById("criticalAnalysisSection").style.display = "none";
-  
+
   // Hide suggestions
   document.getElementById("qaSuggestions").style.display = "none";
 
@@ -830,7 +839,7 @@ function displayResults(data) {
     abstract: data.abstract,
     pdfUrl: data.pdfUrl,
     summary: data.simplifiedSummary,
-    source: data.source || 'arxiv',
+    source: data.source || "arxiv",
     journal: data.journal || "",
     year: data.year || null,
     citationCount: data.citationCount || 0,
@@ -891,12 +900,12 @@ function getExportState() {
 
 async function exportFormat(format) {
   closeExportMenu();
-  
+
   if (!currentPaperId) {
     // Fallback to old export for non-saved papers
-    if (format === 'markdown') {
+    if (format === "markdown") {
       exportMarkdown();
-    } else if (format === 'json') {
+    } else if (format === "json") {
       exportJson();
     } else {
       showToast("Please save the paper first", "error");
@@ -905,10 +914,13 @@ async function exportFormat(format) {
   }
 
   try {
-    const response = await fetch(`/api/papers/${currentPaperId}/export?format=${format}`, {
-      method: "GET",
-      credentials: "same-origin"
-    });
+    const response = await fetch(
+      `/api/papers/${currentPaperId}/export?format=${format}`,
+      {
+        method: "GET",
+        credentials: "same-origin",
+      },
+    );
 
     if (!response.ok) {
       throw new Error("Export failed");
@@ -916,9 +928,9 @@ async function exportFormat(format) {
 
     const contentType = response.headers.get("content-type") || "text/plain";
     const blob = await response.blob();
-    const ext = format === 'bibtex' ? 'bib' : format;
+    const ext = format === "bibtex" ? "bib" : format;
     const filename = `paper.${ext}`;
-    
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -927,7 +939,7 @@ async function exportFormat(format) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
+
     showToast(`Exported ${format.toUpperCase()}`, "success");
   } catch (error) {
     showToast(error.message || "Export failed", "error");
@@ -950,7 +962,7 @@ async function exportMarkdown() {
     try {
       const resp = await apiRequest(
         `/api/arxiv/${encodeURIComponent(arxivId)}/bibtex`,
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       bibtex = (resp?.bibtex || "").toString().trim();
     } catch {
@@ -984,7 +996,7 @@ async function exportMarkdown() {
       lines.push(
         `- **${role}:** ${String(m.text || "")
           .replace(/\n/g, " ")
-          .trim()}`
+          .trim()}`,
       );
     }
   }
@@ -1040,7 +1052,7 @@ function exportText() {
       lines.push(
         `${role}: ${String(m.text || "")
           .replace(/\n/g, " ")
-          .trim()}`
+          .trim()}`,
       );
     }
   }
@@ -1090,7 +1102,7 @@ async function exportBibtex() {
   try {
     const response = await apiRequest(
       `/api/arxiv/${encodeURIComponent(arxivId)}/bibtex`,
-      { cache: "no-store" }
+      { cache: "no-store" },
     );
     const bibtex = (response?.bibtex || "").toString().trim();
     if (!bibtex) throw new Error("Failed to fetch BibTeX");
@@ -1345,7 +1357,7 @@ async function savePaper() {
     body.arxivUrl = `https://arxiv.org/abs/${currentPaper.arxivId}`;
   } else if (currentPaper.doi) {
     body.doi = currentPaper.doi;
-    body.source = 'crossref';
+    body.source = "crossref";
     body.title = currentPaper.title;
     body.authors = currentPaper.authors;
     body.abstract = currentPaper.abstract;
@@ -1353,7 +1365,7 @@ async function savePaper() {
     body.year = currentPaper.year;
   } else if (currentPaper.pmid) {
     body.pmid = currentPaper.pmid;
-    body.source = 'pubmed';
+    body.source = "pubmed";
     body.title = currentPaper.title;
     body.authors = currentPaper.authors;
     body.abstract = currentPaper.abstract;
@@ -1364,12 +1376,14 @@ async function savePaper() {
     body.title = currentPaper.title;
     body.authors = currentPaper.authors;
     body.abstract = currentPaper.abstract;
-    body.source = currentPaper.source || 'manual';
+    body.source = currentPaper.source || "manual";
   }
 
   try {
-    const endpoint = body.arxivUrl ? "/api/papers/import" : "/api/papers/manual";
-    
+    const endpoint = body.arxivUrl
+      ? "/api/papers/import"
+      : "/api/papers/manual";
+
     const response = await apiRequest(endpoint, {
       method: "POST",
       body,
@@ -1445,156 +1459,22 @@ async function savePaperUpdates() {
   }
 }
 
-// --- Reading Lists ---
-
-async function loadReadingLists() {
-  try {
-    const response = await apiRequest("/api/lists");
-    readingLists = response.lists || [];
-    renderSidebarLists();
-  } catch (error) {
-    console.error("Failed to load reading lists", error);
-  }
-}
-
-function renderSidebarLists() {
-  const container = document.getElementById("sidebarLists");
-  if (!container) return;
-  
-  container.innerHTML = readingLists.map(list => `
-    <button class="nav-item" onclick="openReadingList(${list.id})">
-      <span>${escapeHtml(list.name)}</span>
-      <span class="count">${list.paper_count || 0}</span>
-    </button>
-  `).join("");
-}
-
-async function refreshReadingLists() {
-  await loadReadingLists();
-}
-
-function toggleReadingListMenu() {
-  const menu = document.getElementById("readingListMenu");
-  menu.style.display = menu.style.display === "none" ? "block" : "none";
-  
-  if (menu.style.display === "block") {
-    renderReadingListsList();
-  }
-}
-
-function renderReadingListsList() {
-  const container = document.getElementById("readingListsList");
-  if (!container) return;
-  
-  container.innerHTML = readingLists.map(list => `
-    <div class="reading-list-item" onclick="addToReadingList(${list.id})">
-      <span>${escapeHtml(list.name)}</span>
-      <span class="count">${list.paper_count || 0}</span>
-    </div>
-  `).join("");
-}
-
-async function createReadingList() {
-  const input = document.getElementById("newListName");
-  const name = input?.value?.trim();
-  
-  if (!name) {
-    showToast("Please enter a list name", "error");
-    return;
-  }
-
-  try {
-    const response = await apiRequest("/api/lists", {
-      method: "POST",
-      body: { name },
-    });
-    
-    if (response.success) {
-      readingLists.push(response.list);
-      renderSidebarLists();
-      renderReadingListsList();
-      input.value = "";
-      showToast("List created", "success");
-    }
-  } catch (error) {
-    showToast(error.message || "Failed to create list", "error");
-  }
-}
-
-async function addToReadingList(listId) {
-  if (!currentPaperId) {
-    showToast("Save the paper first, then add to a list", "info");
-    return;
-  }
-
-  try {
-    const response = await apiRequest(`/api/lists/${listId}/papers`, {
-      method: "POST",
-      body: { paper_id: currentPaperId },
-    });
-    
-    if (response.success) {
-      showToast("Added to list", "success");
-      toggleReadingListMenu();
-      loadReadingLists();
-    }
-  } catch (error) {
-    showToast(error.message || "Failed to add to list", "error");
-  }
-}
-
-function openReadingList(listId) {
-  // Filter saved papers by reading list
-  // For now, just show all papers (full implementation would require API change)
-  showToast("Reading list view coming soon", "info");
-}
-
-function updateAddToListButton() {
-  const btn = document.getElementById("readingListBtn");
-  if (!btn) return;
-  
-  if (currentPaperId) {
-    btn.disabled = false;
-    btn.classList.remove("btn-disabled");
-  } else {
-    btn.disabled = true;
-    btn.classList.add("btn-disabled");
-  }
-}
-
-function handleNewList(event) {
-  if (event.key === "Enter") {
-    createReadingList();
-  }
-}
-
 function updateSaveButtonState() {
   const btn = document.getElementById("saveBtn");
   const deleteBtn = document.getElementById("paperDeleteBtn");
-  const listBtn = document.getElementById("readingListBtn");
-  
+
   if (currentPaperId) {
     btn.innerHTML =
       '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg> Saved';
     btn.classList.add("btn-primary");
     btn.classList.remove("btn-outline");
     if (deleteBtn) deleteBtn.style.display = "inline-flex";
-    if (listBtn) {
-      listBtn.disabled = false;
-      listBtn.classList.remove("btn-disabled");
-      listBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg> Add to List';
-    }
   } else {
     btn.innerHTML =
       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg> Save';
     btn.classList.remove("btn-primary");
     btn.classList.add("btn-outline");
     if (deleteBtn) deleteBtn.style.display = "none";
-    if (listBtn) {
-      listBtn.disabled = true;
-      listBtn.classList.add("btn-disabled");
-      listBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg> Save First';
-    }
   }
 }
 
@@ -1605,7 +1485,7 @@ async function loadSavedPapers() {
   const project = document.getElementById("projectFilter")?.value?.trim() || "";
   const sortBy = document.getElementById("sortBy")?.value || "created_at";
   const sortOrder = document.getElementById("sortOrder")?.value || "desc";
-  
+
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (project) params.set("project", project);
@@ -1618,7 +1498,7 @@ async function loadSavedPapers() {
     const response = await apiRequest(`/api/papers?${params.toString()}`);
     savedPapers = response.papers || [];
     renderSavedList();
-    
+
     // Update pagination info
     const pageInfo = document.getElementById("pageInfo");
     if (pageInfo && response.pagination) {
@@ -1644,12 +1524,15 @@ function renderSavedList() {
   const container = document.getElementById("savedList");
   container.innerHTML = "";
 
-  const search = document.getElementById("savedSearch")?.value?.toLowerCase() || "";
-  const project = document.getElementById("projectFilter")?.value?.toLowerCase() || "";
+  const search =
+    document.getElementById("savedSearch")?.value?.toLowerCase() || "";
+  const project =
+    document.getElementById("projectFilter")?.value?.toLowerCase() || "";
 
   const filtered = savedPapers.filter((p) => {
-    const matchesSearch = (p.title || "").toLowerCase().includes(search) ||
-                         (p.authors || "").toLowerCase().includes(search);
+    const matchesSearch =
+      (p.title || "").toLowerCase().includes(search) ||
+      (p.authors || "").toLowerCase().includes(search);
     const matchesProject =
       !project || (p.project || "").toLowerCase().includes(project);
     return matchesSearch && matchesProject;
@@ -1672,7 +1555,7 @@ function renderSavedList() {
     });
 
     const citationCount = paper.citation_count || 0;
-    const sourceIcon = paper.doi ? '📄' : paper.pmid ? '🔬' : '📑';
+    const sourceIcon = paper.doi ? "📄" : paper.pmid ? "🔬" : "📑";
 
     item.innerHTML = `
       <span class="nav-item-title">${paper.title}</span>
@@ -1711,8 +1594,8 @@ async function loadSavedPaper(paper) {
     (typeof hydrated.arxiv_url === "string"
       ? hydrated.arxiv_url.replace("abs", "pdf") + ".pdf"
       : arxivId
-      ? `https://arxiv.org/pdf/${arxivId}.pdf`
-      : "#");
+        ? `https://arxiv.org/pdf/${arxivId}.pdf`
+        : "#");
 
   currentPaper = {
     arxivId,
@@ -1728,8 +1611,8 @@ async function loadSavedPaper(paper) {
   currentQaHistory = Array.isArray(hydrated.qa_history)
     ? hydrated.qa_history
     : Array.isArray(hydrated.qaHistory)
-    ? hydrated.qaHistory
-    : [];
+      ? hydrated.qaHistory
+      : [];
 
   // Update UI
   document.getElementById("emptyState").style.display = "none";
@@ -1740,7 +1623,7 @@ async function loadSavedPaper(paper) {
   document.getElementById("paperAuthors").textContent =
     hydrated.authors || currentPaper.authors || "";
   document.getElementById("paperDate").textContent = new Date(
-    hydrated.created_at
+    hydrated.created_at,
   ).toLocaleDateString();
   updatePdfLink(currentPaper.pdfUrl);
 
@@ -1754,7 +1637,7 @@ async function loadSavedPaper(paper) {
   // Summary
   const summaryText = (hydrated.summary || "").toString();
   const keyTermsMatch = summaryText.match(
-    /(\*\*\s*Key\s*Terms\s*:\s*\*\*|Key\s*Terms\s*:)/i
+    /(\*\*\s*Key\s*Terms\s*:\s*\*\*|Key\s*Terms\s*:)/i,
   );
   const keyTermsIndex = keyTermsMatch?.index ?? -1;
 
@@ -1766,7 +1649,7 @@ async function loadSavedPaper(paper) {
   if (keyTerms) {
     keyTerms = keyTerms.replace(
       /^(\*\*\s*)?Key\s*Terms\s*:\s*(\*\*)?/i,
-      "**Key Terms:**"
+      "**Key Terms:**",
     );
   }
 
@@ -1803,7 +1686,6 @@ function applyProjectFilter() {
 
 function refreshSavedList() {
   loadSavedPapers();
-  loadReadingLists();
 }
 
 // --- Right Panel & Q&A ---
@@ -1911,7 +1793,7 @@ async function sendQa() {
   } catch (error) {
     updateQaMessage(
       msgId,
-      "Error: " + (error.message || "Failed to get answer")
+      "Error: " + (error.message || "Failed to get answer"),
     );
 
     const idx = currentQaHistory.findIndex((m) => m.id === msgId);
@@ -1984,7 +1866,6 @@ document.addEventListener("DOMContentLoaded", () => {
   (async () => {
     await refreshSession();
     restoreDraft();
-    loadReadingLists();
   })();
 });
 
@@ -2003,16 +1884,6 @@ document.addEventListener("click", (event) => {
   if (exportMenu.style.display === "none") return;
   if (!exportMenu.contains(event.target) && !exportBtn.contains(event.target)) {
     closeExportMenu();
-  }
-});
-
-document.addEventListener("click", (event) => {
-  const readingListMenu = document.getElementById("readingListMenu");
-  const readingListBtn = document.getElementById("readingListBtn");
-  if (!readingListMenu || !readingListBtn) return;
-  if (readingListMenu.style.display === "none") return;
-  if (!readingListMenu.contains(event.target) && !readingListBtn.contains(event.target)) {
-    readingListMenu.style.display = "none";
   }
 });
 

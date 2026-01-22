@@ -269,32 +269,6 @@
             </div>
           </div>
 
-          <div class="sidebar-section">
-            <div class="section-header">
-              <span class="section-title">Reading Lists</span>
-              <button
-                class="btn-icon btn-xs"
-                onclick="refreshReadingLists()"
-                title="Refresh"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M23 4v6h-6"></path>
-                  <path d="M1 20v-6h6"></path>
-                </svg>
-              </button>
-            </div>
-            <div id="sidebarLists" class="nav-list nav-lists-small">
-              <!-- Reading lists will be injected here -->
-            </div>
-          </div>
-
           <div class="sidebar-content">
             <div id="savedList" class="nav-list">
               <!-- Saved items will be injected here -->
@@ -487,40 +461,6 @@
                     </div>
                   </div>
                   <div class="action-group">
-                    <button
-                      id="readingListBtn"
-                      class="btn btn-outline btn-sm"
-                      onclick="toggleReadingListMenu()"
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <line x1="8" y1="6" x2="21" y2="6"></line>
-                        <line x1="8" y1="12" x2="21" y2="12"></line>
-                        <line x1="8" y1="18" x2="21" y2="18"></line>
-                        <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                        <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                        <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                      </svg>
-                      Add to List
-                    </button>
-                    <div id="readingListMenu" class="reading-list-menu" style="display: none">
-                      <div class="reading-list-header">
-                        <input
-                          type="text"
-                          id="newListName"
-                          placeholder="New list name..."
-                          onkeydown="handleNewList(event)"
-                        />
-                        <button type="button" onclick="createReadingList()">Create</button>
-                      </div>
-                      <div id="readingListsList" class="reading-lists-list"></div>
-                    </div>
                     <button
                       id="saveBtn"
                       class="btn btn-outline btn-sm"
