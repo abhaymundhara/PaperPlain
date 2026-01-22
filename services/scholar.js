@@ -1,5 +1,3 @@
-import { searchPapers } from "./semanticscholar.js";
-
 const SCHOLAR_URL_BASE = "https://scholar.google.com";
 
 export function extractScholarQuery(input) {
@@ -32,9 +30,15 @@ export function isScholarUrl(input) {
   return input.includes("scholar.google.com");
 }
 
+async function searchSemanticscholar(query) {
+  // Dynamic import to avoid circular dependencies
+  const { searchPapers } = await import("./semanticscholar.js");
+  return searchPapers(query, 5);
+}
+
 export async function searchScholarAndGetPaper(query) {
   // Use Semantic Scholar's search to find the paper
-  const results = await searchPapers(query, 5);
+  const results = await searchSemanticscholar(query);
   
   if (!results.data || results.data.length === 0) {
     throw new Error("Paper not found. Try a more specific search.");
@@ -69,3 +73,4 @@ export async function findPapersFromScholarUrl(scholarUrl) {
   
   return searchScholarAndGetPaper(query);
 }
+
