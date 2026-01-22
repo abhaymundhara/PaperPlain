@@ -1331,16 +1331,48 @@ async function savePaper() {
   if (!currentPaper) return;
 
   const project = document.getElementById("paperProject").value.trim();
+  const notes = document.getElementById("userNotes")?.value || "";
+
+  let body = {
+    summary: currentPaper.summary,
+    project,
+    tags: currentTags,
+    notes,
+  };
+
+  // Handle different source types
+  if (currentPaper.arxivId) {
+    body.arxivUrl = `https://arxiv.org/abs/${currentPaper.arxivId}`;
+  } else if (currentPaper.doi) {
+    body.doi = currentPaper.doi;
+    body.source = 'crossref';
+    body.title = currentPaper.title;
+    body.authors = currentPaper.authors;
+    body.abstract = currentPaper.abstract;
+    body.journal = currentPaper.journal;
+    body.year = currentPaper.year;
+  } else if (currentPaper.pmid) {
+    body.pmid = currentPaper.pmid;
+    body.source = 'pubmed';
+    body.title = currentPaper.title;
+    body.authors = currentPaper.authors;
+    body.abstract = currentPaper.abstract;
+    body.journal = currentPaper.journal;
+    body.year = currentPaper.year;
+  } else {
+    // Manual paper entry
+    body.title = currentPaper.title;
+    body.authors = currentPaper.authors;
+    body.abstract = currentPaper.abstract;
+    body.source = currentPaper.source || 'manual';
+  }
 
   try {
-    const response = await apiRequest("/api/papers/import", {
+    const endpoint = body.arxivUrl ? "/api/papers/import" : "/api/papers/manual";
+    
+    const response = await apiRequest(endpoint, {
       method: "POST",
-      body: {
-        arxivUrl: `https://arxiv.org/abs/${currentPaper.arxivId}`,
-        summary: currentPaper.summary,
-        project,
-        tags: currentTags,
-      },
+      body,
     });
 
     if (response?.paper?.id) {
