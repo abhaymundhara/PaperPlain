@@ -11,6 +11,15 @@ const THEME_STORAGE_KEY = "paperplain-theme";
 const WARM_STORAGE_KEY = "paperplain-warm";
 const DRAFT_STORAGE_KEY = "paperplain:draft";
 
+function escapeHtml(str) {
+  return (str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // --- API Helper ---
 async function apiRequest(path, { method = "GET", body, cache } = {}) {
   const controller = new AbortController();
@@ -1117,14 +1126,6 @@ async function exportBibtex() {
 
 function formatMarkdown(text) {
   if (!text) return "";
-
-  const escapeHtml = (str) =>
-    (str || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
-      .replace(/'/g, "&#39;");
 
   const renderInline = (str) =>
     str.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
