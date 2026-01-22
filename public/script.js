@@ -518,6 +518,15 @@ async function simplifyPaper() {
     }
     endpoint = "/api/simplify/pubmed";
     body = { pmid: url, style };
+  } else if (currentSourceType === "scholar") {
+    const scholarInput = document.getElementById("scholarInput");
+    url = scholarInput?.value?.trim() || "";
+    if (!url) {
+      showToast("Please enter a Google Scholar URL or search query", "error");
+      return;
+    }
+    endpoint = "/api/simplify/scholar";
+    body = { url, style };
   }
 
   const btn = document.getElementById("simplifyBtn");

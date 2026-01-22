@@ -13,6 +13,7 @@ import { fileURLToPath } from "url";
 import { fetchPaperByDOI, extractDOI, isDOI } from "./services/crossref.js";
 import { fetchPaperByPMID, extractPMID, isPMID } from "./services/pubmed.js";
 import { fetchPaper, searchPapers, getCitations, getReferences, getRelatedPapers, normalizePaperId, paperToSchema } from "./services/semanticscholar.js";
+import { extractScholarQuery, isScholarUrl, findPapersFromScholarUrl } from "./services/scholar.js";
 
 dotenv.config();
 
@@ -1108,6 +1109,42 @@ app.post("/api/simplify/pubmed", async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message || "Failed to process PMID",
+    });
+  }
+});
+
+// Google Scholar simplification
+app.post("/api/simplify/scholar", async (req, res) => {
+  try {
+    const { url, style = 'simple' } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: "Google Scholar URL or search query required" });
+    }
+
+    // Validate it's a scholar URL or search query
+    if (!isScholarUrl(url) && !extractScholarQuery(url)) {
+      return res.status(400).json({ error: "Invalid Google Scholar URL or search query" });
+    }
+
+    // Find paper via Semantic Scholar (cleanest approach)
+    const paperData = await findPapersFromScholarUrl(url);
+    const summary = await simplifyPaper(paperData, style);
+
+    res.json({
+      success: true,
+      data: {
+        ...paperData,
+        simplifiedSummary: summary,
+        style,
+        source: 'scholar',
+      },
+    });
+  } catch (error) {
+    console.error("Google Scholar Error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to process Google Scholar link",
     });
   }
 });

@@ -267,6 +267,7 @@
                 <button type="button" class="source-tab active" data-type="arxiv" onclick="selectSourceType('arxiv')">arXiv</button>
                 <button type="button" class="source-tab" data-type="doi" onclick="selectSourceType('doi')">DOI</button>
                 <button type="button" class="source-tab" data-type="pubmed" onclick="selectSourceType('pubmed')">PubMed</button>
+                <button type="button" class="source-tab" data-type="scholar" onclick="selectSourceType('scholar')">Google Scholar</button>
               </div>
               <div class="url-input-wrapper">
                 <input
@@ -289,6 +290,14 @@
                   id="pubmedInput"
                   class="main-input source-input source-pubmed"
                   placeholder="Paste PMID (e.g., 23456789)"
+                  autocomplete="off"
+                  style="display: none"
+                />
+                <input
+                  type="text"
+                  id="scholarInput"
+                  class="main-input source-input source-scholar"
+                  placeholder="Paste Google Scholar URL or search query"
                   autocomplete="off"
                   style="display: none"
                 />
