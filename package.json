@@ -1,6 +1,6 @@
 {
   "name": "paper-plain",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Academic Paper De-Jargoner - Simplify complex research papers",
   "main": "server.js",
   "type": "module",
@@ -11,7 +11,9 @@
     "auth:info": "npx -y @better-auth/cli@latest info --config ./auth.js",
     "auth:migrate": "npx -y @better-auth/cli@latest migrate --config ./auth.js",
     "auth:migrate:yes": "npx -y @better-auth/cli@latest migrate --config ./auth.js --yes",
-    "auth:generate": "npx -y @better-auth/cli@latest generate --config ./auth.js"
+    "auth:generate": "npx -y @better-auth/cli@latest generate --config ./auth.js",
+    "migrate": "node migrations/001-multisource.js",
+    "migrate:prod": "NODE_ENV=production node migrations/001-multisource.js"
   },
   "keywords": [
     "arxiv",

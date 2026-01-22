@@ -48,105 +48,191 @@ Perfect for literature reviews, staying current in your field, or exploring new 
    npm install
    ```
 
-3. **Set up environment variables**
+ 3. **Set up environment variables**
 
-   Create a `.env` file in the root directory:
-   ```bash
-   # Required
-   GROQ_API_KEY=your_groq_api_key
-   DATABASE_URL=your_postgres_connection_string
-   BETTER_AUTH_SECRET=your_random_secret_key
-   BETTER_AUTH_URL=http://localhost:3000
+    Create a `.env` file in the root directory:
+    ```bash
+    # Required
+    GROQ_API_KEY=your_groq_api_key
+    DATABASE_URL=your_postgres_connection_string
+    BETTER_AUTH_SECRET=your_random_secret_key
+    BETTER_AUTH_URL=http://localhost:3000
 
-   # Optional - for Google OAuth
-   GOOGLE_CLIENT_ID=your_google_client_id
-   GOOGLE_CLIENT_SECRET=your_google_client_secret
+    # Optional - for Google OAuth
+    GOOGLE_CLIENT_ID=your_google_client_id
+    GOOGLE_CLIENT_SECRET=your_google_client_secret
 
-   # Optional - for PDF uploads on Vercel
-   SUPABASE_URL=your_supabase_project_url
-   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
-   SUPABASE_STORAGE_BUCKET=paperplain-pdfs
-   ```
+    # Optional - for PDF uploads on Vercel
+    SUPABASE_URL=your_supabase_project_url
+    SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
+    SUPABASE_STORAGE_BUCKET=paperplain-pdfs
 
-   Generate a secret key:
-   ```bash
-   npm run auth:secret
-   ```
+    # Optional - Academic APIs (higher rate limits)
+    SEMANTIC_SCHOLAR_API_KEY=your_api_key
+    NCBI_API_KEY=your_ncbi_api_key
+    CONTACT_EMAIL=your@email.com
+    ```
 
-4. **Set up the database**
+    Generate a secret key:
+    ```bash
+    npm run auth:secret
+    ```
 
-   Run the Better Auth migration to create required tables:
-   ```bash
-   npm run auth:migrate:yes
-   ```
+ 4. **Set up the database**
 
-5. **Run the application**
-   ```bash
-   npm run dev
-   ```
+    Run the Better Auth migration to create required tables:
+    ```bash
+    npm run auth:migrate:yes
+    ```
 
-   Open [http://localhost:3000](http://localhost:3000) in your browser.
+    Run the PaperPlain migration to add new tables:
+    ```bash
+    npm run migrate
+    ```
 
-## 🔧 Tech Stack
+ 5. **Run the application**
+    ```bash
+    npm run dev
+    ```
 
-- **Backend**: Node.js + Express
-- **Frontend**: Vanilla JavaScript (no framework dependencies)
-- **Database**: PostgreSQL (Supabase recommended)
-- **Authentication**: [Better Auth](https://www.better-auth.com/) with email/password and Google OAuth
-- **AI**: Groq API with Llama 3.3 70B for summarization
-- **Paper Source**: ArXiv API + PDF parsing
-- **Storage**: Supabase Storage for PDF uploads (optional)
+    Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## 📖 How to Use
+ ## 🔧 Tech Stack
 
-1. **Sign in** to your account (or continue without authentication for basic features)
-2. **Paste an ArXiv URL** (e.g., `https://arxiv.org/abs/2301.00234`) or **upload a PDF**
-3. **Click "Simplify"** to generate a plain English summary
-4. **Read the summary** with problem, methodology, conclusion, and key terms
-5. **Ask questions** using the Q&A panel
-6. **Save papers** to your library with projects and tags
-7. **Add notes** to remember important insights
+ - **Backend**: Node.js + Express
+ - **Frontend**: Vanilla JavaScript (no framework dependencies)
+ - **Database**: PostgreSQL (Supabase recommended)
+ - **Authentication**: [Better Auth](https://www.better-auth.com/) with email/password and Google OAuth
+ - **AI**: Groq API with Llama 3.3 70B for summarization
+ - **Paper Source**: ArXiv API + PDF parsing + Crossref + PubMed + Semantic Scholar
+ - **Storage**: Supabase Storage for PDF uploads (optional)
+
+ ## ✨ What's New in v2.0
+
+ ### Multi-Source Support
+ - **DOI Import**: Simplify papers by DOI (e.g., `10.1038/nature12373`)
+ - **PubMed Support**: Import biomedical papers by PMID
+ - **Semantic Scholar**: Search and discover papers beyond ArXiv
+
+ ### AI Enhancements
+ - **Multiple Summary Styles**: simple, detailed, technical, tldr
+ - **Streaming Responses**: Real-time summary generation
+ - **Critical Analysis**: Get strengths/weaknesses assessment
+ - **Smart Suggestions**: AI-generated follow-up questions
+
+ ### Organization
+ - **Reading Lists**: Create custom collections of papers
+ - **Enhanced Search**: Filter by author, project, tags, date range
+ - **Citation Tracking**: See citation counts and related papers
+
+ ### Export Options
+ - **BibTeX**: For LaTeX/JabRef
+ - **RIS**: For Zotero/Mendeley/EndNote
+ - **Markdown**: For Notion/Obsidian
+ - **JSON**: Raw data export
+ - **CSV**: Spreadsheet format
+
+ ## 📖 How to Use
+
+ 1. **Sign in** to your account (or continue without authentication for basic features)
+ 2. **Paste a paper identifier**:
+    - ArXiv URL (e.g., `https://arxiv.org/abs/2301.00234`)
+    - DOI (e.g., `10.1038/nature12373`)
+    - PMID (e.g., `23456789`)
+    - Or upload a PDF
+ 3. **Choose a summary style** (simple, detailed, technical, or tldr)
+ 4. **Click "Simplify"** to generate a plain English summary
+ 5. **Read the summary** with problem, methodology, conclusion, and key terms
+ 6. **Ask questions** using the Q&A panel
+ 7. **Save papers** to your library with projects and tags
+ 8. **Create reading lists** to organize papers by topic
+ 9. **Export citations** in your preferred format
 
 
-## 📚 API Reference
+ ## 📚 API Reference
 
-### Simplify Endpoints
+ ### Simplify Endpoints
 
-- `POST /api/simplify` - Simplify an ArXiv paper
-- `POST /api/simplify/pdf` - Upload and simplify a PDF
+ - `POST /api/simplify` - Simplify an ArXiv paper
+ - `POST /api/simplify/doi` - Simplify a paper by DOI
+ - `POST /api/simplify/pubmed` - Simplify a PubMed paper by PMID
+ - `POST /api/simplify/pdf` - Upload and simplify a PDF
+ - `POST /api/simplify/stream` - Streaming summary generation
 
-### Auth Endpoints
+ ### Semantic Scholar Integration
 
-- `POST /api/auth/signup` - Create a new account
-- `POST /api/auth/signin` - Sign in with email/password
-- `POST /api/auth/signout` - Sign out
-- `GET /api/auth/me` - Get current user session
-- Better Auth routes at `/api/better-auth/*` (includes Google OAuth)
+ - `GET /api/semanticscholar/search?q=...` - Search papers
+ - `GET /api/semanticscholar/paper/:id` - Get paper metadata
+ - `GET /api/semanticscholar/paper/:id/citations` - Get citations
+ - `GET /api/semanticscholar/paper/:id/related` - Get related papers
 
-### Paper Management
+ ### Auth Endpoints
 
-- `GET /api/papers` - List saved papers
-- `GET /api/papers/:id` - Get a specific paper
-- `POST /api/papers/import` - Save an ArXiv paper
-- `POST /api/papers/manual` - Save a custom paper
-- `PATCH /api/papers/:id` - Update paper (notes, tags, project)
-- `DELETE /api/papers/:id` - Delete a paper
+ - `POST /api/auth/signup` - Create a new account
+ - `POST /api/auth/signin` - Sign in with email/password
+ - `POST /api/auth/signout` - Sign out
+ - `GET /api/auth/me` - Get current user session
+ - Better Auth routes at `/api/better-auth/*` (includes Google OAuth)
 
-### Q&A Endpoints
+ ### Paper Management
 
-- `POST /api/qa/live` - Ask a question about the current paper
-- `POST /api/qa/saved/:id` - Ask a question about a saved paper
+ - `GET /api/papers` - List saved papers (with filters)
+ - `GET /api/papers/:id` - Get a specific paper
+ - `GET /api/papers/:id/citations` - Get paper citations
+ - `GET /api/papers/:id/export?format=...` - Export paper
+ - `POST /api/papers/import` - Save an ArXiv paper
+ - `POST /api/papers/manual` - Save a custom paper
+ - `POST /api/papers/export` - Bulk export papers
+ - `PATCH /api/papers/:id` - Update paper (notes, tags, project)
+ - `DELETE /api/papers/:id` - Delete a paper
+
+ ### Reading Lists
+
+ - `GET /api/lists` - Get user's reading lists
+ - `POST /api/lists` - Create a reading list
+ - `GET /api/lists/:id` - Get list with papers
+ - `PUT /api/lists/:id` - Update a list
+ - `DELETE /api/lists/:id` - Delete a list
+ - `POST /api/lists/:id/papers` - Add paper to list
+ - `DELETE /api/lists/:id/papers/:paperId` - Remove from list
+
+ ### AI Analysis
+
+ - `POST /api/qa/live` - Ask a question about the current paper
+ - `POST /api/qa/saved/:id` - Ask a question about a saved paper
+ - `POST /api/analyze/critical` - Critical analysis of a paper
+ - `POST /api/analyze/suggestions` - Get follow-up question suggestions
+
+ ### User Preferences
+
+ - `GET /api/preferences` - Get user preferences
+ - `PUT /api/preferences` - Update preferences
+
+ ### Query Parameters for /api/papers
+
+ | Parameter | Type | Description |
+ |-----------|------|-------------|
+ | q | string | Text search |
+ | author | string | Filter by author |
+ | project | string | Filter by project |
+ | tags | string | Filter by tags (comma-separated) |
+ | from_date | string | Filter from date (ISO format) |
+ | to_date | string | Filter to date (ISO format) |
+ | sort_by | string | Sort field (title, created_at, citation_count, year) |
+ | sort_order | string | Sort direction (asc, desc) |
+ | page | number | Page number |
+ | limit | number | Results per page (max 100) |
 
 
-## 🤝 Contributing
+ ## 🤝 Contributing
 
-Contributions are welcome! Feel free to open issues or submit pull requests.
+ Contributions are welcome! Feel free to open issues or submit pull requests.
 
-## 📄 License
+ ## 📄 License
 
-This project is licensed under the MIT License.
+ This project is licensed under the MIT License.
 
-## 🙏 Acknowledgments
+ ## 🙏 Acknowledgments
 
 - Powered by [Groq](https://groq.com/) for fast AI inference
 - Built with [Better Auth](https://www.better-auth.com/) for authentication
